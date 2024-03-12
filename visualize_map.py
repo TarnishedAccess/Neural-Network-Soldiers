@@ -14,6 +14,7 @@ height = len(map_data)
 pygame.init()
 
 #Load images
+innerwall_img = pygame.image.load("rock.png")
 floor_img = pygame.image.load("floor.png")
 box_img = pygame.image.load("box.png")
 wall_img = pygame.image.load("wall.png")
@@ -28,7 +29,9 @@ def draw_map():
     for y in range(height):
         for x in range(width):
             tile = map_data[y][x]
-            if tile == 0:
+            if tile == -1:
+                screen.blit(innerwall_img, (x * tile_size, y * tile_size))
+            elif tile == 0:
                 screen.blit(floor_img, (x * tile_size, y * tile_size))
             elif tile == 1:
                 screen.blit(box_img, (x * tile_size, y * tile_size))
