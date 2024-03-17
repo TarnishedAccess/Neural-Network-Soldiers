@@ -4,6 +4,6 @@
 -Run visualize_map.py to visualize it  
   
 ## TODO:
--More/Better generation algorithms  (?)
+-More/Better generation algorithms  (?)  
 -Implement neural network soldiers  <== You are here
 -???
