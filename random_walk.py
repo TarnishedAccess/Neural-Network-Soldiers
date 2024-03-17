@@ -9,9 +9,15 @@ import random
 """
 
 #Parameters
-width = 40
-height = 40
-steps = 2500
+width = 20
+height = 20
+steps = 500
+
+obstacle_chance = 7
+obstacles_weighted = {
+    "pillar": (1, 11),
+    "box": (2, 12)
+    }
 
 #We initialize the map with walls all around
 map = [[-1 for _ in range(width)] for _ in range(height)]
@@ -38,6 +44,25 @@ for i in range(1, len(map)-1):
         if map[i][j] == -1:
             if (map[i][j-1] == 0) or (map[i][j+1] == 0) or (map[i+1][j] == 0) or (map[i-1][j] == 0) or (map[i-1][j-1] == 0) or (map[i+1][j+1] == 0) or (map[i-1][j+1] == 0) or (map[i+1][j-1] == 0):
                 map[i][j] = 2
+
+#Obstacle generation
+for i in range(len(map)):
+    for j in range(len(map[i])):
+        if map[i][j] == 0:
+            chance = random.randint(1,100)
+            if chance <= obstacle_chance:
+                #Weighted spawning
+                sum_weights = 0
+                for key in obstacles_weighted:
+                    sum_weights += obstacles_weighted[key][0]
+                roulette = random.randint(1, sum_weights)
+                cumulative_weight = 0
+                for obstacle, value in obstacles_weighted.items():
+                    cumulative_weight += value[0]
+                    if roulette <= cumulative_weight:
+                        map[i][j] = obstacles_weighted[obstacle][1]
+                        break
+                
                 
 #Save the result to a json
 with open("walker_map.json", 'w') as f:
