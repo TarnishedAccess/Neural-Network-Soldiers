@@ -6,8 +6,6 @@ import os
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
-tile_folder = "tiles"
-
 class Player():
     def __init__(self, x, y):
         self.image = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "char.png")), (tile_size * scale, tile_size * scale))
@@ -61,7 +59,8 @@ class Player():
         print(self.rect.x, self.rect.y, dx, dy)
 
 #Parameters
-scale = 2
+tile_folder = "tiles"
+scale = 1
 tile_size = 16
 
 width = len(map_data[0])
@@ -72,9 +71,7 @@ pygame.init()
 #Load images
 innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
 floor_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "floor.png")), (tile_size * scale, tile_size * scale))
-
 box_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "box.png")), (tile_size * scale, tile_size * scale))
-
 wall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "wall.png")), (tile_size * scale, tile_size * scale))
 pillar_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "pillar.png")), (tile_size * scale, tile_size * scale))
 

@@ -9,9 +9,9 @@ import random
 """
 
 #Parameters
-width = 20
-height = 20
-steps = 500
+width = 30
+height = 30
+steps = 1500
 
 obstacle_chance = 7
 obstacles_weighted = {

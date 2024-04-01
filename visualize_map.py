@@ -1,6 +1,6 @@
 import pygame
 import json
-import random
+import os
 
 #Load the map data from the JSON file
 #with open("walker_map.json", "r") as f:
@@ -8,8 +8,9 @@ with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
 #Parameters
-scale = 2
+scale = 1
 tile_size = 16
+tile_folder = "tiles"
 
 width = len(map_data[0])
 height = len(map_data)
@@ -17,16 +18,13 @@ height = len(map_data)
 pygame.init()
 
 #Load images
-innerwall_img = pygame.transform.scale(pygame.image.load("rock.png"), (tile_size * scale, tile_size * scale))
-floor_img = pygame.transform.scale(pygame.image.load("floor.png"), (tile_size * scale, tile_size * scale))
+innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
+floor_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "floor.png")), (tile_size * scale, tile_size * scale))
 
-box_img = pygame.transform.scale(pygame.image.load("box.png"), (tile_size * scale, tile_size * scale))
-box_img2 = pygame.transform.scale(pygame.image.load("box2.png"), (tile_size * scale, tile_size * scale))
-box_img3 = pygame.transform.scale(pygame.image.load("box3.png"), (tile_size * scale, tile_size * scale))
-boxes = [box_img, box_img2, box_img3]
+box_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "box.png")), (tile_size * scale, tile_size * scale))
 
-wall_img = pygame.transform.scale(pygame.image.load("wall.png"), (tile_size * scale, tile_size * scale))
-pillar_img = pygame.transform.scale(pygame.image.load("pillar.png"), (tile_size * scale, tile_size * scale))
+wall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "wall.png")), (tile_size * scale, tile_size * scale))
+pillar_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "pillar.png")), (tile_size * scale, tile_size * scale))
 
 #Display setup
 display_info = pygame.display.Info()
@@ -48,7 +46,7 @@ def draw_map():
             elif tile == 11:
                 screen.blit(pillar_img, (x * tile_size * scale, y * tile_size * scale))
             elif tile == 12:
-                screen.blit(random.choice(boxes), (x * tile_size * scale, y * tile_size * scale))
+                screen.blit(box_img, (x * tile_size * scale, y * tile_size * scale))
 
 #Main loop
 draw_map()
