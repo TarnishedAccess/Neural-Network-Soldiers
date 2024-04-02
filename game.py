@@ -1,3 +1,4 @@
+import math
 import pygame
 import json
 import os
@@ -6,61 +7,66 @@ import os
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
-class Player():
+class Character():
     def __init__(self, x, y):
         self.image = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "char.png")), (tile_size * scale, tile_size * scale))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
         self.speed = 3 * scale
+        self.turn_speed = 5 * scale
+        self.o = 0
 
     def move(self, map_data):
         dx, dy = 0, 0
         key = pygame.key.get_pressed()
-        #For movement, we check both relevant points for collision detection. (ex: to move left, we check both the top left and the bottom left points.)
+
         if key[pygame.K_LEFT]:
-
-            next_tile_x = (self.rect.x - self.speed + (3*scale)) // (tile_size * scale)
-            next_tile_y_TL = (self.rect.y + (4*scale))// (tile_size * scale)
-            next_tile_y_BL = (self.rect.y + (12*scale)) // (tile_size * scale)
-
-            if (map_data[next_tile_y_TL][next_tile_x] == 0 and map_data[next_tile_y_BL][next_tile_x] == 0):
-                dx -= self.speed
+            self.o += self.turn_speed
 
         if key[pygame.K_RIGHT]:
-
-            next_tile_x = (self.rect.x + self.speed + (12*scale)) // (tile_size * scale)
-            next_tile_y_TL = (self.rect.y + (4*scale)) // (tile_size * scale)
-            next_tile_y_BL = (self.rect.y + (12*scale)) // (tile_size * scale)
-
-            if (map_data[next_tile_y_TL][next_tile_x] == 0 and map_data[next_tile_y_BL][next_tile_x] == 0):
-                dx += self.speed
+            self.o -= self.turn_speed
 
         if key[pygame.K_UP]:
 
-            next_tile_x_TL = (self.rect.x + (3*scale)) // (tile_size * scale)
-            next_tile_x_TR = (self.rect.x + (12*scale)) // (tile_size * scale)
-            next_tile_y = (self.rect.y - self.speed + (1*scale)) // (tile_size * scale)
-
-            if (map_data[next_tile_y][next_tile_x_TL] == 0 and map_data[next_tile_y][next_tile_x_TR] == 0):
-                dy -= self.speed
+            radians = math.radians(self.o)
+            dx += self.speed * math.cos(radians)
+            dy -= self.speed * math.sin(radians)
 
         if key[pygame.K_DOWN]:
 
-            next_tile_x_TL = (self.rect.x + (3*scale)) // (tile_size * scale)
-            next_tile_x_TR = (self.rect.x + (12*scale)) // (tile_size * scale)
-            next_tile_y = (self.rect.y + self.speed + (14*scale)) // (tile_size * scale)
+            radians = math.radians(self.o)
+            dx -= self.speed * math.cos(radians)
+            dy += self.speed * math.sin(radians)
 
-            if (map_data[next_tile_y][next_tile_x_TL] == 0 and map_data[next_tile_y][next_tile_x_TR] == 0):
-                dy += self.speed
+        next_x = self.rect.x + dx
+        next_y = self.rect.y + dy
+        next_tile_x = int((next_x + (3 * scale)) // (tile_size * scale))
+        next_tile_y = int((next_y + (3 * scale)) // (tile_size * scale))
 
-        self.rect.x += dx
-        self.rect.y += dy
+        if (map_data[next_tile_y][next_tile_x] == 0):
+            self.rect.x = next_x
+            self.rect.y = next_y
+
+        #self.rect.x += dx
+        #self.rect.y += dy
         print(self.rect.x, self.rect.y, dx, dy)
+    
+    def draw_arrow(self, screen):
+
+        arrow_length = 20
+        radians = math.radians(self.o)
+        end_x = self.rect.centerx + arrow_length * math.cos(radians)
+        end_y = self.rect.centery - arrow_length * math.sin(radians)
+
+        pygame.draw.line(screen, (255, 0, 0), self.rect.center, (end_x, end_y), 2)
+        pygame.draw.polygon(screen, (255, 0, 0), [(end_x, end_y), 
+                                                  (end_x - 5 * math.cos(radians + math.pi / 6), end_y + 5 * math.sin(radians + math.pi / 6)),
+                                                  (end_x - 5 * math.cos(radians - math.pi / 6), end_y + 5 * math.sin(radians - math.pi / 6))])
 
 #Parameters
 tile_folder = "tiles"
-scale = 1
+scale = 2
 tile_size = 16
 
 width = len(map_data[0])
@@ -102,7 +108,7 @@ running = True
 for i in range(1,height):
     for j in range(1,width):
         if map_data[i][j] == 0:
-            player = Player(j*tile_size*scale, i*tile_size*scale)
+            character_1 = Character(j*tile_size*scale, i*tile_size*scale)
             break
 
 #Main loop
@@ -113,8 +119,9 @@ while running:
 
     screen.fill((0, 0, 0))
     draw_map()
-    player.move(map_data)
-    screen.blit(player.image, player.rect)
+    character_1.move(map_data)
+    character_1.draw_arrow(screen)
+    screen.blit(character_1.image, character_1.rect)
     pygame.display.update()
     pygame.time.Clock().tick(30)
 
