@@ -3,9 +3,16 @@ import pygame
 import json
 import os
 
-#Load the map data from the JSON file
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
+
+class Tile():
+    def __init__(self, sprite, x, y, passable):
+        self.sprite = sprite
+        self.rect = self.sprite.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.passable = passable
 
 class Character():
     def __init__(self, x, y):
@@ -13,6 +20,8 @@ class Character():
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
         self.speed = 3 * scale
         self.turn_speed = 5 * scale
         self.o = 0
@@ -41,16 +50,16 @@ class Character():
 
         next_x = self.rect.x + dx
         next_y = self.rect.y + dy
-        next_tile_x = int((next_x + (3 * scale)) // (tile_size * scale))
-        next_tile_y = int((next_y + (3 * scale)) // (tile_size * scale))
 
-        if (map_data[next_tile_y][next_tile_x] == 0):
-            self.rect.x = next_x
-            self.rect.y = next_y
+        for tile in world:
+            if tile.passable == False:
+                if tile.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
+                    dx = 0
+                elif tile.rect.colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                    dy = 0
 
-        #self.rect.x += dx
-        #self.rect.y += dy
-        print(self.rect.x, self.rect.y, dx, dy)
+        self.rect.x += dx
+        self.rect.y += dy
     
     def draw_arrow(self, screen):
 
@@ -86,24 +95,31 @@ screen_width = width * tile_size * scale
 screen_height = height * tile_size * scale
 screen = pygame.display.set_mode((screen_width, screen_height))
 
+world = []
+
 #Drawing the map
-def draw_map():
+def create_map():
     for y in range(height):
         for x in range(width):
             tile = map_data[y][x]
+
             if tile == -1:
-                screen.blit(innerwall_img, (x * tile_size * scale, y * tile_size * scale))
+                world.append(Tile(innerwall_img, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 0:
-                screen.blit(floor_img, (x * tile_size * scale, y * tile_size * scale))
+                world.append(Tile(floor_img, x * tile_size * scale, y * tile_size * scale, True))
             elif tile == 2:
-                screen.blit(wall_img, (x * tile_size * scale, y * tile_size * scale))
+                world.append(Tile(wall_img, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 11:
-                screen.blit(pillar_img, (x * tile_size * scale, y * tile_size * scale))
+                world.append(Tile(pillar_img, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 12:
-                screen.blit(box_img, (x * tile_size * scale, y * tile_size * scale))
+                world.append(Tile(box_img, x * tile_size * scale, y * tile_size * scale, False))
+
+def draw_map():
+    for tile in world:
+        screen.blit(tile.sprite, tile.rect)
 
 running = True
-
+create_map()
 #Spawning
 for i in range(1,height):
     for j in range(1,width):
@@ -117,11 +133,18 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    screen.fill((0, 0, 0))
     draw_map()
     character_1.move(map_data)
     character_1.draw_arrow(screen)
     screen.blit(character_1.image, character_1.rect)
+    #---Debugging---
+    pygame.draw.rect(screen, (0, 255, 0), character_1.rect, 2)
+    for i in world:
+        if i.passable:
+            pygame.draw.rect(screen, (255, 255, 255), i.rect, 2)
+        else:
+            pygame.draw.rect(screen, (255, 0, 0), i.rect, 2)
+    #---------------
     pygame.display.update()
     pygame.time.Clock().tick(30)
 
