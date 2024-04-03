@@ -1,4 +1,5 @@
 import math
+import random
 import pygame
 import json
 import os
@@ -26,7 +27,7 @@ class Character():
         self.turn_speed = 5 * scale
         self.o = 0
 
-    def move(self, map_data):
+    def move(self):
         dx, dy = 0, 0
         key = pygame.key.get_pressed()
 
@@ -47,9 +48,6 @@ class Character():
             radians = math.radians(self.o)
             dx -= self.speed * math.cos(radians)
             dy += self.speed * math.sin(radians)
-
-        next_x = self.rect.x + dx
-        next_y = self.rect.y + dy
 
         for tile in world:
             if tile.passable == False:
@@ -73,8 +71,74 @@ class Character():
                                                   (end_x - 5 * math.cos(radians + math.pi / 6), end_y + 5 * math.sin(radians + math.pi / 6)),
                                                   (end_x - 5 * math.cos(radians - math.pi / 6), end_y + 5 * math.sin(radians - math.pi / 6))])
 
+    def draw_sight_lines(self, screen):
+        collision_data = []
+
+        #line properties
+        line_length = 3 * tile_size * scale
+        num_lines = 7
+        angle_offset = 15
+        starting_offset = self.o - (num_lines // 2) * angle_offset
+        
+        for i in range(num_lines):
+            radians = math.radians(starting_offset + angle_offset * i)
+            end_x = self.rect.centerx + line_length * math.cos(radians)
+            end_y = self.rect.centery - line_length * math.sin(radians)
+            #green by default, turns red if it collides
+            color = (0, 255, 0)
+            num_segments = 10
+
+            dx = line_length * math.cos(radians) / num_segments
+            dy = line_length * math.sin(radians) / num_segments
+
+            collided = False
+            for j in range(num_segments):
+                x = self.rect.centerx + j * dx
+                y = self.rect.centery - j * dy
+
+                #if a segment of the line collides with a tile, the entire line turns red
+                for tile in world:
+                    if not tile.passable:
+                        if tile.rect.collidepoint(int(x), int(y)):
+                            collided = True
+                            color = (255, 0, 0)
+                            break
+                if collided:
+                    collision_data.append(0)
+                    break
+            #this check could probably be done better as there's some redundancy but its minor and I dont care enough to fix it
+            if not collided:
+                collision_data.append(1)
+                #print 1 if it does not collide, 0 if it does. This is just a minor test, will add distance and such later.
+            
+            pygame.draw.line(screen, color, self.rect.center, (end_x, end_y), 2)
+        print(collision_data)
+
+    def line_intersects_rect(self, x1, y1, x2, y2, rect):
+        rx1, ry1, rx2, ry2 = rect.x, rect.y, rect.x + rect.width, rect.y + rect.height
+
+        #pygame probably has a collision function for lines and rectangles but they're easy enough to make so might as well
+        return (
+            self.line_intersects_line(x1, y1, x2, y2, rx1, ry1, rx2, ry1) or
+            self.line_intersects_line(x1, y1, x2, y2, rx2, ry1, rx2, ry2) or
+            self.line_intersects_line(x1, y1, x2, y2, rx2, ry2, rx1, ry2) or
+            self.line_intersects_line(x1, y1, x2, y2, rx1, ry2, rx1, ry1)
+        )
+
+    #whole lotta math that i just straight up copied from some documentation i am not that smart
+    def line_intersects_line(self, x1, y1, x2, y2, x3, y3, x4, y4):
+        denominator = (x4 - x3) * (y1 - y2) - (y4 - y3) * (x1 - x2)
+        if denominator != 0:
+            numerator1 = (x3 * y4 - x4 * y3) * (x1 - x2) - (x1 * y2 - x2 * y1) * (x3 - x4)
+            numerator2 = (x3 * y4 - x4 * y3) * (y1 - y2) - (x1 * y2 - x2 * y1) * (y3 - y4)
+            return (numerator1 / denominator, numerator2 / denominator) in ((0, 1), (1, 0))
+        return False
+
 #Parameters
 tile_folder = "tiles"
+floors_folder = os.path.join(tile_folder, "floors")
+walls_folder = os.path.join(tile_folder, "walls")
+
 scale = 2
 tile_size = 16
 
@@ -85,9 +149,16 @@ pygame.init()
 
 #Load images
 innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
-floor_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "floor.png")), (tile_size * scale, tile_size * scale))
+
+floors = []
+for floor_img in os.listdir(floors_folder):
+    floors.append(pygame.transform.scale(pygame.image.load(os.path.join(floors_folder, floor_img)), (tile_size * scale, tile_size * scale)))
+
+walls = []
+for wall_img in os.listdir(walls_folder):
+    walls.append(pygame.transform.scale(pygame.image.load(os.path.join(walls_folder, wall_img)), (tile_size * scale, tile_size * scale)))
+
 box_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "box.png")), (tile_size * scale, tile_size * scale))
-wall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "wall.png")), (tile_size * scale, tile_size * scale))
 pillar_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "pillar.png")), (tile_size * scale, tile_size * scale))
 
 #Display setup
@@ -106,9 +177,11 @@ def create_map():
             if tile == -1:
                 world.append(Tile(innerwall_img, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 0:
-                world.append(Tile(floor_img, x * tile_size * scale, y * tile_size * scale, True))
+                image = random.choice(floors)
+                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
             elif tile == 2:
-                world.append(Tile(wall_img, x * tile_size * scale, y * tile_size * scale, False))
+                image = random.choice(walls)
+                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 11:
                 world.append(Tile(pillar_img, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 12:
@@ -134,17 +207,18 @@ while running:
             running = False
 
     draw_map()
-    character_1.move(map_data)
-    character_1.draw_arrow(screen)
+    character_1.move()
     screen.blit(character_1.image, character_1.rect)
+    character_1.draw_sight_lines(screen)
     #---Debugging---
     pygame.draw.rect(screen, (0, 255, 0), character_1.rect, 2)
-    for i in world:
-        if i.passable:
-            pygame.draw.rect(screen, (255, 255, 255), i.rect, 2)
-        else:
-            pygame.draw.rect(screen, (255, 0, 0), i.rect, 2)
+    #for i in world:
+    #    if i.passable:
+    #        pygame.draw.rect(screen, (255, 255, 255), i.rect, 2)
+    #    else:
+    #        pygame.draw.rect(screen, (255, 0, 0), i.rect, 2)
     #---------------
+    character_1.draw_arrow(screen)
     pygame.display.update()
     pygame.time.Clock().tick(30)
 
