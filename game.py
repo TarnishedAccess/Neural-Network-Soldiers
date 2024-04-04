@@ -17,8 +17,17 @@ class Tile():
 
 class Player():
     def __init__(self, x, y, team):
-        self.image = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "char.png")), (tile_size * scale, tile_size * scale))
+
+        if team == 1:
+            self.image = random.choice(team1_sprites)
+        else:
+            self.image = random.choice(team2_sprites)
+
+        #Do it twice so it updates the hitbox with the new dimensions
         self.rect = self.image.get_rect()
+        self.image = pygame.transform.scale(self.image, (self.rect.width * scale, self.rect.height * scale))
+        self.rect = self.image.get_rect()
+
         self.rect.x = x
         self.rect.y = y
         self.width = self.image.get_width()
@@ -28,9 +37,9 @@ class Player():
         self.o = 0
         self.team = team
 
-
     def move(self):
         dx, dy = 0, 0
+
         key = pygame.key.get_pressed()
 
         if key[pygame.K_LEFT]:
@@ -52,6 +61,8 @@ class Player():
             dy += self.speed * math.sin(radians)
 
         for tile in world:
+            #Collision detection.
+            #TODO: There's a bug here somewhere.
             if tile.passable == False:
                 if tile.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                     dx = 0
@@ -61,6 +72,7 @@ class Player():
         self.rect.x += dx
         self.rect.y += dy
     
+    #front-facing arrow
     def draw_arrow(self, screen):
 
         arrow_length = 20
@@ -106,6 +118,7 @@ class Player():
                 x = self.rect.centerx + j * dx
                 y = self.rect.centery - j * dy
 
+                #Terrain detection
                 for tile in world:
                     if not tile.passable:
                         if tile.rect.collidepoint(int(x), int(y)):
@@ -115,11 +128,13 @@ class Player():
 
                 for character in characters:
                     if character is not self:
+                        #Friendly detection
                         if character.rect.collidepoint(int(x), int(y)) and character.team == self.team:
                             collided_friendly = True
                             color = green
                             break
 
+                        #Enemy detection
                         if character.rect.collidepoint(int(x), int(y)) and character.team != self.team:
                             collided_enemy = True
                             color = red
@@ -129,6 +144,8 @@ class Player():
             data.append(1 if collided_enemy else 0)
             data.append(1 if collided_friendly else 0)
             data.append(1 if collided_terrain else 0)
+            #(E, F, T)
+
             collision_data.append(data)
 
             pygame.draw.line(screen, color, self.rect.center, (end_x, end_y), 2)
@@ -158,10 +175,12 @@ class Character(Player):
 
     def __init__(self, x, y, team):
         super().__init__(x, y, team)
+        #randomized starting orientation
         self.o = random.uniform(0, 360)
 
     def move(self):
         dx, dy = 0, 0
+        #placeholder movement function for AIs that is just completely random movement
 
         if random.random() < 1:
             self.o += random.uniform(-self.turn_speed, self.turn_speed)
@@ -184,9 +203,14 @@ class Character(Player):
 tile_folder = "tiles"
 floors_folder = os.path.join(tile_folder, "floors")
 walls_folder = os.path.join(tile_folder, "walls")
+team1_folder = os.path.join(tile_folder, "T1")
+team2_folder = os.path.join(tile_folder, "T2")
 
+#scales everything up or down
 scale = 2
 tile_size = 16
+#this seems to have worked out well enough
+fps = 30 * scale
 
 width = len(map_data[0])
 height = len(map_data)
@@ -203,6 +227,14 @@ for floor_img in os.listdir(floors_folder):
 walls = []
 for wall_img in os.listdir(walls_folder):
     walls.append(pygame.transform.scale(pygame.image.load(os.path.join(walls_folder, wall_img)), (tile_size * scale, tile_size * scale)))
+
+team1_sprites = []
+for team1_img in os.listdir(team1_folder):
+    team1_sprites.append(pygame.image.load(os.path.join(team1_folder, team1_img)))
+
+team2_sprites = []
+for team2_img in os.listdir(team2_folder):
+    team2_sprites.append(pygame.image.load(os.path.join(team2_folder, team2_img)))
 
 box_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "box.png")), (tile_size * scale, tile_size * scale))
 pillar_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "pillar.png")), (tile_size * scale, tile_size * scale))
@@ -282,14 +314,14 @@ while running:
             running = False
 
     draw_map()
-    #plyer movement, don't want the others to move just yet
+    #player movement, don't want the others to move just yet
     characters[0].move()
-    print(len(characters))
-    #character_1.move()
-    #character_2.move()
+
     for character in characters:
         screen.blit(character.image, character.rect)
     characters[0].draw_sight_lines(screen)
+    characters[0].draw_arrow(screen)
+
     #---Debugging---
     #pygame.draw.rect(screen, (0, 255, 0), player_1.rect, 2)
     #for i in world:
@@ -298,8 +330,8 @@ while running:
     #    else:
     #        pygame.draw.rect(screen, (255, 0, 0), i.rect, 2)
     #---------------
-    characters[0].draw_arrow(screen)
+    
     pygame.display.update()
-    pygame.time.Clock().tick(30)
+    pygame.time.Clock().tick(fps)
 
 pygame.quit()
