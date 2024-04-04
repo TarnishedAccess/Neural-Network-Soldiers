@@ -15,8 +15,8 @@ class Tile():
         self.rect.y = y
         self.passable = passable
 
-class Character():
-    def __init__(self, x, y):
+class Player():
+    def __init__(self, x, y, team):
         self.image = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "char.png")), (tile_size * scale, tile_size * scale))
         self.rect = self.image.get_rect()
         self.rect.x = x
@@ -26,6 +26,8 @@ class Character():
         self.speed = 3 * scale
         self.turn_speed = 5 * scale
         self.o = 0
+        self.team = team
+
 
     def move(self):
         dx, dy = 0, 0
@@ -72,45 +74,63 @@ class Character():
                                                   (end_x - 5 * math.cos(radians - math.pi / 6), end_y + 5 * math.sin(radians - math.pi / 6))])
 
     def draw_sight_lines(self, screen):
-        collision_data = []
-
         #line properties
         line_length = 3 * tile_size * scale
         num_lines = 7
         angle_offset = 15
         starting_offset = self.o - (num_lines // 2) * angle_offset
+
+        red = (255, 0, 0)
+        white = (255, 255, 255)
+        blue = (0, 0, 255)
+        green = (0, 255, 0)
         
+        collision_data = []
+
         for i in range(num_lines):
             radians = math.radians(starting_offset + angle_offset * i)
             end_x = self.rect.centerx + line_length * math.cos(radians)
             end_y = self.rect.centery - line_length * math.sin(radians)
-            #green by default, turns red if it collides
-            color = (0, 255, 0)
+            color = white
             num_segments = 10
 
             dx = line_length * math.cos(radians) / num_segments
             dy = line_length * math.sin(radians) / num_segments
 
-            collided = False
+            collided_friendly = collided_enemy = collided_terrain = False
+
             for j in range(num_segments):
+                if collided_enemy or collided_friendly or collided_terrain:
+                    break
+
                 x = self.rect.centerx + j * dx
                 y = self.rect.centery - j * dy
 
-                #if a segment of the line collides with a tile, the entire line turns red
                 for tile in world:
                     if not tile.passable:
                         if tile.rect.collidepoint(int(x), int(y)):
-                            collided = True
-                            color = (255, 0, 0)
+                            collided_terrain = True
+                            color = blue
                             break
-                if collided:
-                    collision_data.append(0)
-                    break
-            #this check could probably be done better as there's some redundancy but its minor and I dont care enough to fix it
-            if not collided:
-                collision_data.append(1)
-                #print 1 if it does not collide, 0 if it does. This is just a minor test, will add distance and such later.
+
+                for character in characters:
+                    if character is not self:
+                        if character.rect.collidepoint(int(x), int(y)) and character.team == self.team:
+                            collided_friendly = True
+                            color = green
+                            break
+
+                        if character.rect.collidepoint(int(x), int(y)) and character.team != self.team:
+                            collided_enemy = True
+                            color = red
+                            break
             
+            data = []
+            data.append(1 if collided_enemy else 0)
+            data.append(1 if collided_friendly else 0)
+            data.append(1 if collided_terrain else 0)
+            collision_data.append(data)
+
             pygame.draw.line(screen, color, self.rect.center, (end_x, end_y), 2)
         print(collision_data)
 
@@ -133,6 +153,32 @@ class Character():
             numerator2 = (x3 * y4 - x4 * y3) * (y1 - y2) - (x1 * y2 - x2 * y1) * (y3 - y4)
             return (numerator1 / denominator, numerator2 / denominator) in ((0, 1), (1, 0))
         return False
+    
+class Character(Player):
+
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team)
+        self.o = random.uniform(0, 360)
+
+    def move(self):
+        dx, dy = 0, 0
+
+        if random.random() < 1:
+            self.o += random.uniform(-self.turn_speed, self.turn_speed)
+
+        radians = math.radians(self.o)
+        dx += self.speed * math.cos(radians)
+        dy -= self.speed * math.sin(radians)
+
+        for tile in world:
+            if tile.passable == False:
+                if tile.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
+                    dx = 0
+                elif tile.rect.colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                    dy = 0
+
+        self.rect.x += dx
+        self.rect.y += dy
 
 #Parameters
 tile_folder = "tiles"
@@ -167,6 +213,7 @@ screen_height = height * tile_size * scale
 screen = pygame.display.set_mode((screen_width, screen_height))
 
 world = []
+characters = []
 
 #Drawing the map
 def create_map():
@@ -193,13 +240,41 @@ def draw_map():
 
 running = True
 create_map()
-#Spawning
-for i in range(1,height):
-    for j in range(1,width):
-        if map_data[i][j] == 0:
-            character_1 = Character(j*tile_size*scale, i*tile_size*scale)
-            break
 
+#Spawning (this code is abhorrent, will fix later dw)
+
+spawned_player = False
+for i in range(1, height):
+    for j in range(1, width):
+        if map_data[i][j] == 0:
+            characters.append(Player(j * tile_size * scale, i * tile_size * scale, 1))
+            spawned_player = True
+            break
+    if spawned_player:
+        break
+
+spawned_character = False
+for i in range(3,height):
+    for j in range(3,width):
+        if map_data[i][j] == 0:
+            if random.random() < 0.1:
+                characters.append(Character(j*tile_size*scale, i*tile_size*scale, 1))
+                spawned_character = True
+                break
+    if spawned_character:
+        break
+
+spawned_character = False
+for i in range(3,height):
+    for j in range(3,width):
+        if map_data[i][j] == 0:
+            if random.random() < 0.1:
+                characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2))
+                spawned_character = True
+                break
+    if spawned_character:
+        break
+                
 #Main loop
 while running:
     for event in pygame.event.get():
@@ -207,18 +282,23 @@ while running:
             running = False
 
     draw_map()
-    character_1.move()
-    screen.blit(character_1.image, character_1.rect)
-    character_1.draw_sight_lines(screen)
+    #plyer movement, don't want the others to move just yet
+    characters[0].move()
+    print(len(characters))
+    #character_1.move()
+    #character_2.move()
+    for character in characters:
+        screen.blit(character.image, character.rect)
+    characters[0].draw_sight_lines(screen)
     #---Debugging---
-    pygame.draw.rect(screen, (0, 255, 0), character_1.rect, 2)
+    #pygame.draw.rect(screen, (0, 255, 0), player_1.rect, 2)
     #for i in world:
     #    if i.passable:
     #        pygame.draw.rect(screen, (255, 255, 255), i.rect, 2)
     #    else:
     #        pygame.draw.rect(screen, (255, 0, 0), i.rect, 2)
     #---------------
-    character_1.draw_arrow(screen)
+    characters[0].draw_arrow(screen)
     pygame.display.update()
     pygame.time.Clock().tick(30)
 
