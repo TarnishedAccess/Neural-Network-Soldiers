@@ -3,6 +3,8 @@ import random
 import pygame
 import json
 import os
+import tensorflow as tf
+import numpy as np
 
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
@@ -14,6 +16,40 @@ class Tile():
         self.rect.x = x
         self.rect.y = y
         self.passable = passable
+
+class Projectile():
+    def __init__(self, sprite, x, y, o, speed, origin):
+        self.sprite = sprite
+        self.rect = self.sprite.get_rect()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.rect.x = x - self.width//2
+        self.rect.y = y - self.height//2
+        self.o = o
+        self.speed = speed
+        self.origin = origin
+
+    def collide(self, x, y):
+        for character in characters:
+            if character is not self.origin:
+                if character.rect.colliderect(x, y, self.width, self.height):
+                    characters.remove(character)
+                    projectiles.remove(self)
+                    return True
+        for tile in world:
+            if tile.passable == False:
+                if tile.rect.colliderect(x, y, self.width, self.height):
+                    projectiles.remove(self)
+                    return True
+        return False
+
+    def move(self):
+        radians = math.radians(self.o)
+        dx = self.speed * math.cos(radians)
+        dy = self.speed * math.sin(radians)
+        if not self.collide(self.rect.x + dx, self.rect.y + dy):
+            self.rect.x += dx
+            self.rect.y -= dy
 
 class Player():
     def __init__(self, x, y, team):
@@ -36,9 +72,15 @@ class Player():
         self.turn_speed = 5 * scale
         self.o = 0
         self.team = team
+        self.collision_data = [0] * 21
+
+        self.shoot_cd = 0
+        self.shoot_max_cd = 5
 
     def move(self):
         dx, dy = 0, 0
+        if self.shoot_cd != 0:
+            self.shoot_cd -= 1
 
         key = pygame.key.get_pressed()
 
@@ -60,6 +102,9 @@ class Player():
             dx -= self.speed * math.cos(radians)
             dy += self.speed * math.sin(radians)
 
+        if key[pygame.K_SPACE]:
+            self.shoot()
+
         for tile in world:
             #Collision detection.
             #TODO: There's a bug here somewhere.
@@ -71,6 +116,15 @@ class Player():
 
         self.rect.x += dx
         self.rect.y += dy
+
+    def shoot(self):
+        if self.shoot_cd == 0:
+            self.shoot_cd = self.shoot_max_cd
+            radians = math.radians(self.o)
+            spawn_x = self.rect.centerx + 15 * math.cos(radians)
+            spawn_y = self.rect.centery - 15 * math.sin(radians)
+            projectiles.append(Projectile(bullet_img, spawn_x, spawn_y, self.o, 5 * scale, self))
+
     
     #front-facing arrow
     def draw_arrow(self, screen):
@@ -100,11 +154,13 @@ class Player():
         collision_data = []
 
         for i in range(num_lines):
+
             radians = math.radians(starting_offset + angle_offset * i)
-            end_x = self.rect.centerx + line_length * math.cos(radians)
-            end_y = self.rect.centery - line_length * math.sin(radians)
+            end_x = self.rect.centerx
+            end_y = self.rect.centery
             color = white
-            num_segments = 10
+
+            num_segments = 20
 
             dx = line_length * math.cos(radians) / num_segments
             dy = line_length * math.sin(radians) / num_segments
@@ -114,6 +170,10 @@ class Player():
             for j in range(num_segments):
                 if collided_enemy or collided_friendly or collided_terrain:
                     break
+                
+                #More or less so that the ray stops at the first object hit
+                end_x += line_length // num_segments * math.cos(radians)
+                end_y -= line_length // num_segments * math.sin(radians)
 
                 x = self.rect.centerx + j * dx
                 y = self.rect.centery - j * dy
@@ -140,16 +200,20 @@ class Player():
                             color = red
                             break
             
+            collision_distance = math.sqrt((end_x - self.rect.centerx)**2 + (end_y - self.rect.centery)**2)
+            max_collision_distance = 80
+            scaled_collision_distance = collision_distance / max_collision_distance
+
             data = []
-            data.append(1 if collided_enemy else 0)
-            data.append(1 if collided_friendly else 0)
-            data.append(1 if collided_terrain else 0)
+            data.append(scaled_collision_distance if collided_enemy else 0)
+            data.append(scaled_collision_distance if collided_friendly else 0)
+            data.append(scaled_collision_distance if collided_terrain else 0)
             #(E, F, T)
 
-            collision_data.append(data)
+            collision_data.extend(data)
 
             pygame.draw.line(screen, color, self.rect.center, (end_x, end_y), 2)
-        print(collision_data)
+        self.collision_data = collision_data
 
     def line_intersects_rect(self, x1, y1, x2, y2, rect):
         rx1, ry1, rx2, ry2 = rect.x, rect.y, rect.x + rect.width, rect.y + rect.height
@@ -173,23 +237,39 @@ class Player():
     
 class Character(Player):
 
-    def __init__(self, x, y, team):
+    def __init__(self, x, y, team, AI):
         super().__init__(x, y, team)
         #randomized starting orientation
         self.o = random.uniform(0, 360)
+        self.AI = AI
+        self.prediction_cd = fps
+        self.prediction_timer = self.prediction_cd
+        self.actions = None
 
     def move(self):
         dx, dy = 0, 0
-        #placeholder movement function for AIs that is just completely random movement
+        if self.prediction_timer == self.prediction_cd:
+            self.actions = self.AI.predict(np.array(self.collision_data).reshape(1, -1))
+            self.prediction_timer = 0
+        else:
+            self.prediction_timer += 1
+        print(self.actions)
 
-        if random.random() < 1:
-            self.o += random.uniform(-self.turn_speed, self.turn_speed)
+        self.o += (self.actions[0][1] - 0.5) * 2 * self.turn_speed
 
         radians = math.radians(self.o)
-        dx += self.speed * math.cos(radians)
-        dy -= self.speed * math.sin(radians)
+        dx += self.speed * math.cos(radians) * self.actions[0][0]
+        dy -= self.speed * math.sin(radians) * self.actions[0][0]
+        
+        if self.shoot_cd != 0:
+            self.shoot_cd -= 1
+
+        if self.actions[0][2] <= 0.5:
+            Character.shoot(self)
 
         for tile in world:
+            #Collision detection.
+            #TODO: There's a bug here somewhere.
             if tile.passable == False:
                 if tile.rect.colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                     dx = 0
@@ -198,6 +278,8 @@ class Character(Player):
 
         self.rect.x += dx
         self.rect.y += dy
+        
+        #placeholder movement function for AIs that is just completely random movement
 
 #Parameters
 tile_folder = "tiles"
@@ -210,7 +292,7 @@ team2_folder = os.path.join(tile_folder, "T2")
 scale = 2
 tile_size = 16
 #this seems to have worked out well enough
-fps = 30 * scale
+fps = 30
 
 width = len(map_data[0])
 height = len(map_data)
@@ -236,6 +318,10 @@ team2_sprites = []
 for team2_img in os.listdir(team2_folder):
     team2_sprites.append(pygame.image.load(os.path.join(team2_folder, team2_img)))
 
+bullet_img = pygame.image.load(os.path.join(tile_folder, "bullet.png"))
+bullet_rect = bullet_img.get_rect()
+bullet_img = pygame.transform.scale(bullet_img, (bullet_rect.width * scale, bullet_rect.height * scale))
+
 box_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "box.png")), (tile_size * scale, tile_size * scale))
 pillar_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "pillar.png")), (tile_size * scale, tile_size * scale))
 
@@ -246,6 +332,7 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 
 world = []
 characters = []
+projectiles = []
 
 #Drawing the map
 def create_map():
@@ -284,7 +371,7 @@ for i in range(1, height):
             break
     if spawned_player:
         break
-
+"""
 spawned_character = False
 for i in range(3,height):
     for j in range(3,width):
@@ -295,13 +382,14 @@ for i in range(3,height):
                 break
     if spawned_character:
         break
+"""
 
 spawned_character = False
 for i in range(3,height):
     for j in range(3,width):
         if map_data[i][j] == 0:
             if random.random() < 0.1:
-                characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2))
+                characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model("dummy_model")))
                 spawned_character = True
                 break
     if spawned_character:
@@ -315,12 +403,17 @@ while running:
 
     draw_map()
     #player movement, don't want the others to move just yet
-    characters[0].move()
+    #characters[0].move()
 
     for character in characters:
+        character.draw_sight_lines(screen)
+        character.draw_arrow(screen)
+        character.move()
         screen.blit(character.image, character.rect)
-    characters[0].draw_sight_lines(screen)
-    characters[0].draw_arrow(screen)
+
+    for projectile in projectiles:
+        projectile.move()
+        screen.blit(projectile.sprite, projectile.rect)
 
     #---Debugging---
     #pygame.draw.rect(screen, (0, 255, 0), player_1.rect, 2)
