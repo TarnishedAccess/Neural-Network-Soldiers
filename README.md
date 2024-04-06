@@ -1,11 +1,11 @@
 # Neural Network Soldiers
  
 -Run one of the generation algorithms to generate a map  
--Run visualize_map.py to visualize it  
+-Run game  
   
 ## OPTIONAL:
 -More/Better generation algorithms 
--???
+-???  
 
 ## TODO:
 -add rotation  
@@ -20,10 +20,12 @@
 -calculate collision distance instead of 0s and 1s  
 -make shooting function  
 -make neural network  
--implement neural network to game (let neural network control actions)
+-implement neural network to game (let neural network control actions)  
 -optimize model 	                                                    <= YOU ARE HERE  
 -train model  
 
+
+## PROJECT TRACKING:
 
 24/03/2024
 Excellent

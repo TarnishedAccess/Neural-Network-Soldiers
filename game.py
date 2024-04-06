@@ -9,6 +9,11 @@ import numpy as np
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
+#Start parameters
+spawn_player = True
+spawn_enemy = True
+spawn_friendly = False
+
 class Tile():
     def __init__(self, sprite, x, y, passable):
         self.sprite = sprite
@@ -242,7 +247,7 @@ class Character(Player):
         #randomized starting orientation
         self.o = random.uniform(0, 360)
         self.AI = AI
-        self.prediction_cd = fps
+        self.prediction_cd = fps // 2
         self.prediction_timer = self.prediction_cd
         self.actions = None
 
@@ -255,11 +260,19 @@ class Character(Player):
             self.prediction_timer += 1
         print(self.actions)
 
-        self.o += (self.actions[0][1] - 0.5) * 2 * self.turn_speed
+        if self.actions[0][1] <= 0.33:
+            self.o -= self.turn_speed
+        elif self.actions[0][1] >= 0.66:
+            self.o += self.turn_speed
 
         radians = math.radians(self.o)
-        dx += self.speed * math.cos(radians) * self.actions[0][0]
-        dy -= self.speed * math.sin(radians) * self.actions[0][0]
+
+        if self.actions[0][0] <= 0.33:
+            dx -= self.speed * math.cos(radians)
+            dy += self.speed * math.sin(radians)
+        elif self.actions[0][0] >= 0.66:
+            dx += self.speed * math.cos(radians)
+            dy -= self.speed * math.sin(radians)
         
         if self.shoot_cd != 0:
             self.shoot_cd -= 1
@@ -322,8 +335,13 @@ bullet_img = pygame.image.load(os.path.join(tile_folder, "bullet.png"))
 bullet_rect = bullet_img.get_rect()
 bullet_img = pygame.transform.scale(bullet_img, (bullet_rect.width * scale, bullet_rect.height * scale))
 
-box_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "box.png")), (tile_size * scale, tile_size * scale))
-pillar_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "pillar.png")), (tile_size * scale, tile_size * scale))
+box_img = pygame.image.load(os.path.join(tile_folder, "box.png"))
+box_rect = box_img.get_rect()
+box_img = pygame.transform.scale(box_img, (box_rect.width * scale, box_rect.height * scale))
+
+pillar_img = pygame.image.load(os.path.join(tile_folder, "pillar.png"))
+pillar_rect = pillar_img.get_rect()
+pillar_img = pygame.transform.scale(pillar_img, (pillar_rect.width * scale, pillar_rect.height * scale))
 
 #Display setup
 screen_width = width * tile_size * scale
@@ -349,9 +367,17 @@ def create_map():
                 image = random.choice(walls)
                 world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, False))
             elif tile == 11:
-                world.append(Tile(pillar_img, x * tile_size * scale, y * tile_size * scale, False))
+                image = random.choice(floors)
+                x_offset = (tile_size * scale - pillar_img.get_width()) // 2
+                y_offset = (tile_size * scale - pillar_img.get_height()) // 2
+                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
+                world.append(Tile(pillar_img, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
             elif tile == 12:
-                world.append(Tile(box_img, x * tile_size * scale, y * tile_size * scale, False))
+                image = random.choice(floors)
+                x_offset = (tile_size * scale - box_img.get_width()) // 2
+                y_offset = (tile_size * scale - box_img.get_height()) // 2
+                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
+                world.append(Tile(box_img, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
 
 def draw_map():
     for tile in world:
@@ -362,38 +388,40 @@ create_map()
 
 #Spawning (this code is abhorrent, will fix later dw)
 
-spawned_player = False
-for i in range(1, height):
-    for j in range(1, width):
-        if map_data[i][j] == 0:
-            characters.append(Player(j * tile_size * scale, i * tile_size * scale, 1))
-            spawned_player = True
+if spawn_player:
+    spawned_player = False
+    for i in range(1, height):
+        for j in range(1, width):
+            if map_data[i][j] == 0:
+                characters.append(Player(j * tile_size * scale, i * tile_size * scale, 1))
+                spawned_player = True
+                break
+        if spawned_player:
             break
-    if spawned_player:
-        break
-"""
-spawned_character = False
-for i in range(3,height):
-    for j in range(3,width):
-        if map_data[i][j] == 0:
-            if random.random() < 0.1:
-                characters.append(Character(j*tile_size*scale, i*tile_size*scale, 1))
-                spawned_character = True
-                break
-    if spawned_character:
-        break
-"""
 
-spawned_character = False
-for i in range(3,height):
-    for j in range(3,width):
-        if map_data[i][j] == 0:
-            if random.random() < 0.1:
-                characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model("dummy_model")))
-                spawned_character = True
-                break
-    if spawned_character:
-        break
+if spawn_friendly:
+    spawned_character = False
+    for i in range(3,height):
+        for j in range(3,width):
+            if map_data[i][j] == 0:
+                if random.random() < 0.1:
+                    characters.append(Character(j*tile_size*scale, i*tile_size*scale, 1))
+                    spawned_character = True
+                    break
+        if spawned_character:
+            break
+
+if spawn_enemy:
+    spawned_character = False
+    for i in range(3,height):
+        for j in range(3,width):
+            if map_data[i][j] == 0:
+                if random.random() < 0.1:
+                    characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model(os.path.join("neural_network", "dummy_model"))))
+                    spawned_character = True
+                    break
+        if spawned_character:
+            break
                 
 #Main loop
 while running:
