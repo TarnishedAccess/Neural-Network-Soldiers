@@ -2,7 +2,8 @@ import tensorflow as tf
 import numpy as np
 import random
 
-model = tf.keras.models.load_model("neural_network\dummy_model")
+#model = tf.keras.layers.TFSMLayer("neural_network\dummy_model", call_endpoint="serving_default")
+model = tf.keras.models.load_model("neural_network\dummy_model.keras")
 
 for j in range(5):
 

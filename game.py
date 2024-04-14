@@ -258,8 +258,6 @@ class Character(Player):
             self.prediction_timer = 0
         else:
             self.prediction_timer += 1
-        print(self.actions)
-
         if self.actions[0][1] <= 0.33:
             self.o -= self.turn_speed
         elif self.actions[0][1] >= 0.66:
@@ -311,6 +309,8 @@ width = len(map_data[0])
 height = len(map_data)
 
 pygame.init()
+
+font = pygame.font.Font(None, 13)
 
 #Load images
 innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
@@ -417,7 +417,8 @@ if spawn_enemy:
         for j in range(3,width):
             if map_data[i][j] == 0:
                 if random.random() < 0.1:
-                    characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model(os.path.join("neural_network", "dummy_model"))))
+                    characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model(os.path.join("neural_network", "dummy_model.keras"))))
+                    #characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model(os.path.join("neural_network", "dummy_model"))))
                     spawned_character = True
                     break
         if spawned_character:
@@ -428,13 +429,17 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            print(mouse_x, mouse_y)
+            for i in range(len(characters)):
+                if characters[i].rect.collidepoint(mouse_x, mouse_y):
+                    characters[i], characters[0] = characters[0], characters[i]
+                    break
 
     draw_map()
-    #player movement, don't want the others to move just yet
-    #characters[0].move()
 
     for character in characters:
-        character.draw_sight_lines(screen)
         character.draw_arrow(screen)
         character.move()
         screen.blit(character.image, character.rect)
@@ -442,6 +447,8 @@ while running:
     for projectile in projectiles:
         projectile.move()
         screen.blit(projectile.sprite, projectile.rect)
+
+    characters[0].draw_sight_lines(screen)
 
     #---Debugging---
     #pygame.draw.rect(screen, (0, 255, 0), player_1.rect, 2)
