@@ -3,16 +3,18 @@ import random
 import pygame
 import json
 import os
-import tensorflow as tf
 import numpy as np
+from neural_network.neural_creator_scratch import *
 
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
 #Start parameters
-spawn_player = True
+spawn_player = False
 spawn_enemy = True
-spawn_friendly = False
+num_enemy = 5
+spawn_friendly = True
+num_friendly = 5
 
 class Tile():
     def __init__(self, sprite, x, y, passable):
@@ -247,35 +249,56 @@ class Character(Player):
         #randomized starting orientation
         self.o = random.uniform(0, 360)
         self.AI = AI
-        self.prediction_cd = fps // 2
+        self.prediction_cd = 2
         self.prediction_timer = self.prediction_cd
         self.actions = None
 
     def move(self):
         dx, dy = 0, 0
         if self.prediction_timer == self.prediction_cd:
-            self.actions = self.AI.predict(np.array(self.collision_data).reshape(1, -1))
+            self.actions = self.AI.predict(np.array(self.collision_data))
+            print(f"input: {self.collision_data}")
+            print(f"output: {self.actions}")
             self.prediction_timer = 0
         else:
             self.prediction_timer += 1
+
+        print(self.actions)
+        turn_decision = self.actions[1][0] - 0.5
+        if turn_decision < 0:
+            self.o -= self.turn_speed * abs(turn_decision * 2)
+        else:
+            self.o += self.turn_speed * abs(turn_decision * 2)
+
+        """
         if self.actions[0][1] <= 0.33:
             self.o -= self.turn_speed
         elif self.actions[0][1] >= 0.66:
             self.o += self.turn_speed
+        """
 
         radians = math.radians(self.o)
 
+        """
         if self.actions[0][0] <= 0.33:
             dx -= self.speed * math.cos(radians)
             dy += self.speed * math.sin(radians)
         elif self.actions[0][0] >= 0.66:
             dx += self.speed * math.cos(radians)
             dy -= self.speed * math.sin(radians)
-        
+        """
+        movement_decision = self.actions[0][0] - 0.5
+        if movement_decision < 0:
+            dx -= self.speed * math.cos(radians) * abs(movement_decision * 2)
+            dy += self.speed * math.sin(radians) * abs(movement_decision * 2)
+        else:
+            dx += self.speed * math.cos(radians) * abs(movement_decision * 2)
+            dy -= self.speed * math.sin(radians) * abs(movement_decision * 2)
+
         if self.shoot_cd != 0:
             self.shoot_cd -= 1
 
-        if self.actions[0][2] <= 0.5:
+        if self.actions[2][0] <= 0.5:
             Character.shoot(self)
 
         for tile in world:
@@ -303,7 +326,12 @@ team2_folder = os.path.join(tile_folder, "T2")
 scale = 2
 tile_size = 16
 #this seems to have worked out well enough
-fps = 30
+fps = 60
+
+#Neural Network Parameters
+inputs = 21
+hidden = 14
+outputs = 3
 
 width = len(map_data[0])
 height = len(map_data)
@@ -383,46 +411,28 @@ def draw_map():
     for tile in world:
         screen.blit(tile.sprite, tile.rect)
 
+def valid_spawn(world_data):
+    valid_spawns = [tile for tile in world_data if tile.passable]
+    chosen_spawn = random.choice(valid_spawns)
+    return [chosen_spawn.rect.x, chosen_spawn.rect.y]
+
 running = True
 create_map()
 
-#Spawning (this code is abhorrent, will fix later dw)
-
+#Spawning
 if spawn_player:
-    spawned_player = False
-    for i in range(1, height):
-        for j in range(1, width):
-            if map_data[i][j] == 0:
-                characters.append(Player(j * tile_size * scale, i * tile_size * scale, 1))
-                spawned_player = True
-                break
-        if spawned_player:
-            break
+    spawn_location = valid_spawn(world)
+    characters.append(Player(spawn_location[0], spawn_location[1], 1))
 
 if spawn_friendly:
-    spawned_character = False
-    for i in range(3,height):
-        for j in range(3,width):
-            if map_data[i][j] == 0:
-                if random.random() < 0.1:
-                    characters.append(Character(j*tile_size*scale, i*tile_size*scale, 1))
-                    spawned_character = True
-                    break
-        if spawned_character:
-            break
+    for i in range(num_friendly):
+        spawn_location = valid_spawn(world)
+        characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, outputs)))
 
 if spawn_enemy:
-    spawned_character = False
-    for i in range(3,height):
-        for j in range(3,width):
-            if map_data[i][j] == 0:
-                if random.random() < 0.1:
-                    characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model(os.path.join("neural_network", "dummy_model.keras"))))
-                    #characters.append(Character(j*tile_size*scale, i*tile_size*scale, 2, tf.keras.models.load_model(os.path.join("neural_network", "dummy_model"))))
-                    spawned_character = True
-                    break
-        if spawned_character:
-            break
+    for i in range(num_enemy):
+        spawn_location = valid_spawn(world)
+        characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, outputs)))
                 
 #Main loop
 while running:
