@@ -38,3 +38,8 @@ RayCasting OK
 Neural Net OK
 Collision Detection
 Firing
+
+22/05/2024
+Neural Net connected to sprites
+no Learning
+random walks
