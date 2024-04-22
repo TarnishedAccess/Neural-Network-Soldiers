@@ -31,3 +31,10 @@
 Excellent
 Map rendue
 Sprite en mouvement 
+
+
+15/04/2024
+RayCasting OK
+Neural Net OK
+Collision Detection
+Firing
