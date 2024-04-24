@@ -148,7 +148,7 @@ class Player():
 
     def draw_sight_lines(self, screen):
         #line properties
-        line_length = 3 * tile_size * scale
+        line_length = 6 * tile_size * scale
         num_lines = 7
         angle_offset = 15
         starting_offset = self.o - (num_lines // 2) * angle_offset
@@ -451,7 +451,7 @@ while running:
 
     for character in characters:
         character.draw_arrow(screen)
-        character.move()
+        character.move()  
         screen.blit(character.image, character.rect)
 
     for projectile in projectiles:

@@ -4,8 +4,11 @@
 -Run game  
   
 ## OPTIONAL:
--More/Better generation algorithms 
--???  
+-More/Better generation algorithms  
+-interface for terrain gen  
+-UI/info on soldiers during runtime  
+-darken walls  
+-more obstacle/rock sprites  
 
 ## TODO:
 -add rotation  
@@ -21,9 +24,29 @@
 -make shooting function  
 -make neural network  
 -implement neural network to game (let neural network control actions)  
--optimize model 	                                                    <= YOU ARE HERE  
--train model  
+-optimize model 	                                                    
+-implement score system  <= YOU ARE HERE  
+-implement selection function  
+-implement crossing function  
+-implement mutation function  
+-finishing touches  
 
+#===TRAINING===  
+add score to characters  
+track kills  
+add reward/penalty system  
+	enemy kill:				+30  
+	friendly kill:				-50  
+	bullet wasted:				-3  
+	time survived:				+1/s  
+	staring at wall:			-3/s  
+	keep enemy in outlying vision:		-4/s  
+	keep enemy in center vision:		+6/s  
+	keep enemy in center vision in cover:	+12/s  
+	keep friendlies in outlying vision:	+4/s  
+	multiple enemies in vision:		-5/s  
+	camping penalty:			-5/s  
+Note: Values are experimental and prone to change  
 
 ## PROJECT TRACKING:
 
