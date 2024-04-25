@@ -2,15 +2,17 @@ import numpy as np
 import random
 
 class NeuralNetwork():
-    def __init__(self, inputs, hidden, outputs):
+    def __init__(self, inputs, hidden, hidden2, outputs):
 
         #Adding a multiplier here to make sure weights are on the lower side as otherwise its always going to tend to 1 since we're using sigmoid
         #Or maybe my implementation is dogwater that's a possibility
         self.multiplier = random.uniform(0, 0.3)
         self.W1 = np.random.rand(hidden, inputs) * self.multiplier
         self.B1 = np.random.rand(hidden, 1) * self.multiplier
-        self.W2 = np.random.rand(outputs, hidden) * self.multiplier
-        self.B2 = np.random.rand(outputs, 1) * self.multiplier
+        self.W2 = np.random.rand(hidden2, hidden) * self.multiplier
+        self.B2 = np.random.rand(hidden2, 1) * self.multiplier
+        self.W3 = np.random.rand(outputs, hidden2) * self.multiplier
+        self.B3 = np.random.rand(outputs, 1) * self.multiplier
 
     def print_data(self):
         print(f"multiplier: {self.multiplier}")
@@ -18,6 +20,8 @@ class NeuralNetwork():
         print(f"B1: {self.B1}")
         print(f"W2: {self.W2}")
         print(f"B2: {self.B2}")
+        print(f"W3: {self.W3}")
+        print(f"B3: {self.B3}")
 
     def ReLU(self, Z):
         return np.maximum(0, Z)
@@ -30,4 +34,6 @@ class NeuralNetwork():
         A1 = self.sigmoid(Z1)
         Z2 = np.dot(self.W2, A1) + self.B2
         A2 = self.ReLU(Z2) 
-        return A2
+        Z3 = np.dot(self.W3, A2) + self.B3
+        A3 = self.ReLU(Z3)
+        return A3

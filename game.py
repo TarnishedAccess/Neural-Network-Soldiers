@@ -25,6 +25,9 @@ tile_size = 16
 #this seems to have worked out well enough
 fps = 30
 
+team_1_color = (50, 50, 250)
+team_2_color = (250, 50, 50)
+
 kill_popup_timer = fps * 2
 
 #Score Parameters
@@ -33,8 +36,10 @@ friendly_kill_score = -50
 bullet_fired_score = -0.25
 time_survived_score = 1
 
-kill_announcements = ["Killed", "Neutralized", "Eliminated", "Slain", "Annihilated", "Vanquished"]
-betrayal_announcements = ["Misfired", "Betrayed", "Backstabbed", "Mutinied", "Teamkilled", "FFd"]
+projectile_max_distance = tile_size * scale * 6
+
+kill_announcements = ["Killed", "Neutralized", "Eliminated", "Terminated", "Exterminated", "Eradicated"]
+betrayal_announcements = ["Sabotaged", "Betrayed", "Backstabbed", "Doublecrossed", "Tricked", "Deceived"]
 
 class Tile():
     def __init__(self, sprite, x, y, passable):
@@ -55,6 +60,8 @@ class Projectile():
         self.o = o
         self.speed = speed
         self.origin = origin
+        self.distance_travelled = 0
+        self.transparency = 255
 
     def collide(self, x, y):
         for character in characters:
@@ -69,12 +76,14 @@ class Projectile():
                     kill_feed.append([self.origin, character, kill_popup_timer, choice])
                     characters.remove(character)
                     graveyard.append(character)
-                    projectiles.remove(self)
+                    if self in projectiles:
+                        projectiles.remove(self)
                     return True
         for tile in world:
             if tile.passable == False:
                 if tile.rect.colliderect(x, y, self.width, self.height):
-                    projectiles.remove(self)
+                    if self in projectiles:
+                        projectiles.remove(self)
                     return True
         return False
 
@@ -83,6 +92,7 @@ class Projectile():
         dx = self.speed * math.cos(radians)
         dy = self.speed * math.sin(radians)
         if not self.collide(self.rect.x + dx, self.rect.y + dy):
+            self.distance_travelled += math.sqrt(math.pow(dx, 2) + math.pow(dy, 2))
             self.rect.x += dx
             self.rect.y -= dy
 
@@ -160,7 +170,11 @@ class Player():
             radians = math.radians(self.o)
             spawn_x = self.rect.centerx + 15 * math.cos(radians)
             spawn_y = self.rect.centery - 15 * math.sin(radians)
-            projectiles.append(Projectile(bullet_img, spawn_x, spawn_y, self.o, 5 * scale, self))
+            if self.team == 1:
+                bullet_sprite = bullet_img.copy()
+            else:
+                bullet_sprite = bullet_img2.copy()
+            projectiles.append(Projectile(bullet_sprite, spawn_x, spawn_y, self.o, 5 * scale, self))
             self.score += bullet_fired_score
 
     
@@ -286,22 +300,24 @@ class Character(Player):
         #randomized starting orientation
         self.o = random.uniform(0, 360)
         self.AI = AI
-        self.prediction_cd = 2
+        self.prediction_cd = 0
         self.prediction_timer = self.prediction_cd
         self.actions = None
 
     def move(self):
         dx, dy = 0, 0
-        if self.prediction_timer == self.prediction_cd:
+        if self.prediction_timer >= self.prediction_cd:
             self.actions = self.AI.predict(np.array(self.collision_data))
-            print(f"input: {self.collision_data}")
-            print(f"output: {self.actions}")
+            self.actions = [min(action_temp[0], 1) for action_temp in self.actions]
+
+            #print(f"input: {self.collision_data}")
+            #print(f"output: {self.actions}")
             self.prediction_timer = 0
         else:
             self.prediction_timer += 1
 
-        print(self.actions)
-        turn_decision = self.actions[1][0] - 0.5
+        #print(self.actions)
+        turn_decision = self.actions[1] - 0.5
         if turn_decision < 0:
             self.o -= self.turn_speed * abs(turn_decision * 2)
         else:
@@ -324,7 +340,7 @@ class Character(Player):
             dx += self.speed * math.cos(radians)
             dy -= self.speed * math.sin(radians)
         """
-        movement_decision = self.actions[0][0] - 0.5
+        movement_decision = self.actions[0] - 0.5
         if movement_decision < 0:
             dx -= self.speed * math.cos(radians) * abs(movement_decision * 2)
             dy += self.speed * math.sin(radians) * abs(movement_decision * 2)
@@ -335,7 +351,7 @@ class Character(Player):
         if self.shoot_cd != 0:
             self.shoot_cd -= 1
 
-        if self.actions[2][0] <= 0.5:
+        if self.actions[2] >= 0.5:
             Character.shoot(self)
             
 
@@ -350,8 +366,37 @@ class Character(Player):
 
         self.rect.x += dx
         self.rect.y += dy
-        
-        #placeholder movement function for AIs that is just completely random movement
+
+    def render_stats(self):
+        text_surface = font2.render(f"Selected: {self.name}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x, text_rect.y = 10, screen_height - 200
+        screen.blit(text_surface, text_rect)
+
+        text_surface = font2.render(f"Score: {self.score}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size
+        screen.blit(text_surface, text_rect)
+
+        text_surface = font2.render(f"Team: {self.team}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 2
+        screen.blit(text_surface, text_rect)
+
+        text_surface = font2.render(f"Movement Neuron: {round(self.actions[0], 5)}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 3
+        screen.blit(text_surface, text_rect)
+
+        text_surface = font2.render(f"Turning Neuron: {round(self.actions[1], 5)}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 4
+        screen.blit(text_surface, text_rect)
+
+        text_surface = font2.render(f"Shooting Neuron: {round(self.actions[2], 5)}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 5
+        screen.blit(text_surface, text_rect)
 
 #Parameters
 tile_folder = "tiles"
@@ -359,10 +404,12 @@ floors_folder = os.path.join(tile_folder, "floors")
 walls_folder = os.path.join(tile_folder, "walls")
 team1_folder = os.path.join(tile_folder, "T1")
 team2_folder = os.path.join(tile_folder, "T2")
+projectile_folder = os.path.join(tile_folder, "projectiles")
 
 #Neural Network Parameters
 inputs = 21
 hidden = 14
+hidden_2 = 7
 outputs = 3
 
 width = len(map_data[0])
@@ -376,6 +423,11 @@ font2_size = 17
 font2 = pygame.font.Font(None, font2_size)
 font3_size = 22
 font3 = pygame.font.Font(None, font3_size)
+
+#Display setup
+screen_width = width * tile_size * scale
+screen_height = height * tile_size * scale
+screen = pygame.display.set_mode((screen_width, screen_height))
 
 #Load images
 innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
@@ -396,9 +448,13 @@ team2_sprites = []
 for team2_img in os.listdir(team2_folder):
     team2_sprites.append(pygame.image.load(os.path.join(team2_folder, team2_img)))
 
-bullet_img = pygame.image.load(os.path.join(tile_folder, "bullet.png"))
+bullet_img = pygame.image.load(os.path.join(projectile_folder, "bullet.png")).convert_alpha()
 bullet_rect = bullet_img.get_rect()
 bullet_img = pygame.transform.scale(bullet_img, (bullet_rect.width * scale, bullet_rect.height * scale))
+
+bullet_img2 = pygame.image.load(os.path.join(projectile_folder, "bullet2.png")).convert_alpha()
+bullet_rect2 = bullet_img2.get_rect()
+bullet_img2 = pygame.transform.scale(bullet_img2, (bullet_rect2.width * scale, bullet_rect2.height * scale))
 
 box_img = pygame.image.load(os.path.join(tile_folder, "box.png"))
 box_rect = box_img.get_rect()
@@ -407,11 +463,6 @@ box_img = pygame.transform.scale(box_img, (box_rect.width * scale, box_rect.heig
 pillar_img = pygame.image.load(os.path.join(tile_folder, "pillar.png"))
 pillar_rect = pillar_img.get_rect()
 pillar_img = pygame.transform.scale(pillar_img, (pillar_rect.width * scale, pillar_rect.height * scale))
-
-#Display setup
-screen_width = width * tile_size * scale
-screen_height = height * tile_size * scale
-screen = pygame.display.set_mode((screen_width, screen_height))
 
 world = []
 characters = []
@@ -473,9 +524,9 @@ def draw_kill_feed(kill_feed: list):
     kill_feed.sort(key=lambda x: x[2], reverse=False)
     for i in range(len(kill_feed)):
         if kill_feed[i][0].team == 1:
-            color = (0, 0, 200)
+            color = team_1_color
         else:
-            color = (200, 0, 0)
+            color = team_2_color
         text_surface = font2.render(f"{kill_feed[i][0].name}", True, color)
         text_rect = text_surface.get_rect()
         text_rect.x = start_width
@@ -489,9 +540,9 @@ def draw_kill_feed(kill_feed: list):
         screen.blit(text_surface, text_rect)
 
         if kill_feed[i][1].team == 1:
-            color = (0, 0, 200)
+            color = team_1_color
         else:
-            color = (200, 0, 0)
+            color = team_2_color
         text_surface = font2.render(f"{kill_feed[i][1].name}", True, color)
         text_rect = text_surface.get_rect()
         text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3 + font2_size * len(kill_feed[i][3]) // 3 + 20
@@ -517,12 +568,12 @@ if spawn_player:
 if spawn_friendly:
     for i in range(num_friendly):
         spawn_location = valid_spawn(world)
-        characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, outputs)))
+        characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
 if spawn_enemy:
     for i in range(num_enemy):
         spawn_location = valid_spawn(world)
-        characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, outputs)))
+        characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
 fps_counter = 0
 #Main loop
@@ -532,7 +583,7 @@ while running:
             running = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mouse_x, mouse_y = pygame.mouse.get_pos()
-            print(mouse_x, mouse_y)
+            #print(mouse_x, mouse_y)
             for i in range(len(characters)):
                 if characters[i].rect.collidepoint(mouse_x, mouse_y):
                     characters[i], characters[0] = characters[0], characters[i]
@@ -551,14 +602,22 @@ while running:
             fps_counter = 0
 
     for projectile in projectiles:
+        if projectile.distance_travelled > projectile_max_distance:
+            projectile.sprite.fill((255, 255, 255, projectile.transparency), None, pygame.BLEND_RGBA_MULT)
+            projectile.transparency -= 50
+        
+        if projectile.transparency <= 0:
+            projectiles.remove(projectile)
+
         projectile.move()
         screen.blit(projectile.sprite, projectile.rect)
 
+
     characters[0].draw_sight_lines(screen)
+    characters[0].render_stats()
 
     top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
     draw_highscore_list(top_performers)
-
     draw_kill_feed(kill_feed)
     
     #---Debugging---
