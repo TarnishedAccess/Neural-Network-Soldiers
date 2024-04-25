@@ -32,9 +32,15 @@ kill_popup_timer = fps * 2
 
 #Score Parameters
 enemy_kill_score = 30
-friendly_kill_score = -50
-bullet_fired_score = -0.25
+friendly_kill_score = -40
+bullet_fired_score = -0.1
 time_survived_score = 1
+camping_cutoff = 50 * scale
+camping_timer = 4 * fps
+movement_reward = 0.25
+
+staring_wall_score = -0.25
+wall_staring_timer = 3 * fps
 
 projectile_max_distance = tile_size * scale * 6
 
@@ -124,6 +130,12 @@ class Player():
         self.shoot_cd = 0
         self.shoot_max_cd = 5
 
+        self.camping_stopwatch = 0
+        self.camping_x = 0
+        self.camping_y = 0
+
+        self.wall_staring_stopwatch = 0
+
     def move(self):
         dx, dy = 0, 0
         if self.shoot_cd != 0:
@@ -175,7 +187,7 @@ class Player():
             else:
                 bullet_sprite = bullet_img2.copy()
             projectiles.append(Projectile(bullet_sprite, spawn_x, spawn_y, self.o, 5 * scale, self))
-            self.score += bullet_fired_score
+            self.score = round(self.score + bullet_fired_score, 3)
 
     
     #front-facing arrow
@@ -203,7 +215,7 @@ class Player():
         blue = (0, 0, 255)
         green = (0, 255, 0)
         
-        collision_data = []
+        collision_data = [0] * (num_lines * 3)
 
         for i in range(num_lines):
 
@@ -256,13 +268,10 @@ class Player():
             max_collision_distance = 80
             scaled_collision_distance = collision_distance / max_collision_distance
 
-            data = []
-            data.append(scaled_collision_distance if collided_enemy else 0)
-            data.append(scaled_collision_distance if collided_friendly else 0)
-            data.append(scaled_collision_distance if collided_terrain else 0)
-            #(E, F, T)
-
-            collision_data.extend(data)
+            #Terrain, Enemy, Friendly
+            collision_data[i] = (scaled_collision_distance if collided_terrain else 0)
+            collision_data[num_lines + i] = (scaled_collision_distance if collided_enemy else 0)
+            collision_data[num_lines * 2 + i] = (scaled_collision_distance if collided_friendly else 0)
 
             pygame.draw.line(screen, color, self.rect.center, (end_x, end_y), 2)
         self.collision_data = collision_data
@@ -309,12 +318,33 @@ class Character(Player):
         if self.prediction_timer >= self.prediction_cd:
             self.actions = self.AI.predict(np.array(self.collision_data))
             self.actions = [min(action_temp[0], 1) for action_temp in self.actions]
-
             #print(f"input: {self.collision_data}")
             #print(f"output: {self.actions}")
             self.prediction_timer = 0
         else:
             self.prediction_timer += 1
+
+        #Parts of the score system.
+        non_zero_count = sum(1 for i in self.collision_data[0:7] if i != 0)
+        if non_zero_count > 5:
+            self.wall_staring_stopwatch += 1
+        else:
+            self.wall_staring_stopwatch = 0
+
+        if self.wall_staring_stopwatch >= wall_staring_timer:
+            self.score += staring_wall_score
+
+        if self.camping_stopwatch <= 0:
+            self.camping_x = self.rect.centerx
+            self.camping_y = self.rect.centery
+
+        self.camping_stopwatch += 1
+
+        if self.camping_stopwatch >= camping_timer:
+            distance = math.sqrt(math.pow(self.rect.centerx - self.camping_x, 2) + math.pow(self.rect.centery - self.camping_y, 2))
+            distance -= camping_cutoff
+            self.score += int(distance * movement_reward)
+            self.camping_stopwatch = 0
 
         #print(self.actions)
         turn_decision = self.actions[1] - 0.5
@@ -615,6 +645,8 @@ while running:
 
     characters[0].draw_sight_lines(screen)
     characters[0].render_stats()
+    #print(characters[0].camping_stopwatch)
+    #print(characters[0].wall_staring_stopwatch)
 
     top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
     draw_highscore_list(top_performers)
