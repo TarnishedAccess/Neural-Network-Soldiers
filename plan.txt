@@ -1,7 +1,0 @@
-BSP Random Walker:
-	start dungeon with x*y filled with wall
-	pick random direction, (random x/random y) split dungeon.
-	ensure both resulting splits would have enough space for a room
-	if not just stop? split again? maybe try z times then stop? have min height/min width to stop at?
-	apply random walker algorithm to all resulting dungeons with scaling step size
-	connect all of them somehow (<=== this is the issue)

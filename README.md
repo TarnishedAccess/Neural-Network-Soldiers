@@ -25,8 +25,8 @@
 -make neural network  
 -implement neural network to game (let neural network control actions)  
 -optimize model 	                                                    
--implement score system  <= YOU ARE HERE  
--implement selection function  
+-implement score system  
+-implement selection function  <= YOU ARE HERE  
 -implement crossing function  
 -implement mutation function  
 -finishing touches  
@@ -46,6 +46,7 @@ add reward/penalty system
 	keep friendlies in outlying vision:	+4/s  
 	multiple enemies in vision:		-5/s  
 	camping penalty:			-5/s  
+	dying penalty:				-30 (?)  
 Note: Values are experimental and prone to change  
 
 ## PROJECT TRACKING:

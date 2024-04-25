@@ -1,16 +1,6 @@
 import numpy as np
 import random
 
-#outputs = 3
-#inputs = 21
-
-#hidden?
-#1 layer with 14
-
-#activation: sigmoid, relu
-
-example_input = [0, 0, 0.2999999999999997, 0, 0, 0.40000000000000024, 0, 0, 0.900000000000001, 0, 0, 0.8999999999999988, 0, 0, 0.6499999999999988, 0, 0, 0.44999999999999873, 0, 0, 0.40000000000000113]
-
 class NeuralNetwork():
     def __init__(self, inputs, hidden, outputs):
 

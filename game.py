@@ -4,17 +4,37 @@ import pygame
 import json
 import os
 import numpy as np
-from neural_network.neural_creator_scratch import *
+from neural_network.neural_network import *
 
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
+with open("first-names.txt", "r") as f:
+    first_names = [x.strip() for x in f.readlines()]
+
 #Start parameters
 spawn_player = False
 spawn_enemy = True
-num_enemy = 5
+num_enemy = 8
 spawn_friendly = True
-num_friendly = 5
+num_friendly = 8
+highscore_size = 6
+#scales everything up or down
+scale = 1.5
+tile_size = 16
+#this seems to have worked out well enough
+fps = 30
+
+kill_popup_timer = fps * 2
+
+#Score Parameters
+enemy_kill_score = 30
+friendly_kill_score = -50
+bullet_fired_score = -0.25
+time_survived_score = 1
+
+kill_announcements = ["Killed", "Neutralized", "Eliminated", "Slain", "Annihilated", "Vanquished"]
+betrayal_announcements = ["Misfired", "Betrayed", "Backstabbed", "Mutinied", "Teamkilled", "FFd"]
 
 class Tile():
     def __init__(self, sprite, x, y, passable):
@@ -40,7 +60,15 @@ class Projectile():
         for character in characters:
             if character is not self.origin:
                 if character.rect.colliderect(x, y, self.width, self.height):
+                    if character.team == self.origin.team:
+                        self.origin.score += friendly_kill_score
+                        choice = random.choice(betrayal_announcements)
+                    else:
+                        self.origin.score += enemy_kill_score
+                        choice = random.choice(kill_announcements)
+                    kill_feed.append([self.origin, character, kill_popup_timer, choice])
                     characters.remove(character)
+                    graveyard.append(character)
                     projectiles.remove(self)
                     return True
         for tile in world:
@@ -80,6 +108,8 @@ class Player():
         self.o = 0
         self.team = team
         self.collision_data = [0] * 21
+        self.name = random.choice(first_names)
+        self.score = 0
 
         self.shoot_cd = 0
         self.shoot_max_cd = 5
@@ -131,6 +161,7 @@ class Player():
             spawn_x = self.rect.centerx + 15 * math.cos(radians)
             spawn_y = self.rect.centery - 15 * math.sin(radians)
             projectiles.append(Projectile(bullet_img, spawn_x, spawn_y, self.o, 5 * scale, self))
+            self.score += bullet_fired_score
 
     
     #front-facing arrow
@@ -242,6 +273,12 @@ class Player():
             return (numerator1 / denominator, numerator2 / denominator) in ((0, 1), (1, 0))
         return False
     
+    def render_name(self):
+        text_surface = font.render(self.name, True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.center = (self.rect.centerx, self.rect.centery + self.height // 2 + 10)
+        screen.blit(text_surface, text_rect)
+    
 class Character(Player):
 
     def __init__(self, x, y, team, AI):
@@ -300,6 +337,7 @@ class Character(Player):
 
         if self.actions[2][0] <= 0.5:
             Character.shoot(self)
+            
 
         for tile in world:
             #Collision detection.
@@ -322,12 +360,6 @@ walls_folder = os.path.join(tile_folder, "walls")
 team1_folder = os.path.join(tile_folder, "T1")
 team2_folder = os.path.join(tile_folder, "T2")
 
-#scales everything up or down
-scale = 2
-tile_size = 16
-#this seems to have worked out well enough
-fps = 60
-
 #Neural Network Parameters
 inputs = 21
 hidden = 14
@@ -338,7 +370,12 @@ height = len(map_data)
 
 pygame.init()
 
-font = pygame.font.Font(None, 13)
+font1_size = 13
+font = pygame.font.Font(None, font1_size)
+font2_size = 17
+font2 = pygame.font.Font(None, font2_size)
+font3_size = 22
+font3 = pygame.font.Font(None, font3_size)
 
 #Load images
 innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
@@ -378,7 +415,9 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 
 world = []
 characters = []
+graveyard = []
 projectiles = []
+kill_feed = []
 
 #Drawing the map
 def create_map():
@@ -416,6 +455,57 @@ def valid_spawn(world_data):
     chosen_spawn = random.choice(valid_spawns)
     return [chosen_spawn.rect.x, chosen_spawn.rect.y]
 
+def draw_highscore_list(top_performers):
+    start_width = 10
+    start_height = 10
+    for top_performer in top_performers:
+        text_surface = font2.render(f"{top_performer.name}: {top_performer.score}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x = start_width
+        text_rect.y = start_height
+        screen.blit(text_surface, text_rect)
+        start_height += font2_size
+
+def draw_kill_feed(kill_feed: list):
+    start_width = screen_width - 200
+    start_height = 10
+    #[killer, victim, timer, adjective]
+    kill_feed.sort(key=lambda x: x[2], reverse=False)
+    for i in range(len(kill_feed)):
+        if kill_feed[i][0].team == 1:
+            color = (0, 0, 200)
+        else:
+            color = (200, 0, 0)
+        text_surface = font2.render(f"{kill_feed[i][0].name}", True, color)
+        text_rect = text_surface.get_rect()
+        text_rect.x = start_width
+        text_rect.y = start_height
+        screen.blit(text_surface, text_rect)
+
+        text_surface = font2.render(f"{kill_feed[i][3]}", True, (255, 255, 255))
+        text_rect = text_surface.get_rect()
+        text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3  + 10
+        text_rect.y = start_height
+        screen.blit(text_surface, text_rect)
+
+        if kill_feed[i][1].team == 1:
+            color = (0, 0, 200)
+        else:
+            color = (200, 0, 0)
+        text_surface = font2.render(f"{kill_feed[i][1].name}", True, color)
+        text_rect = text_surface.get_rect()
+        text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3 + font2_size * len(kill_feed[i][3]) // 3 + 20
+        text_rect.y = start_height
+        screen.blit(text_surface, text_rect)
+
+        kill_feed[i][2] -= 1
+        start_height += font2_size
+
+    for kill in kill_feed:
+        if kill[2] == 0:
+            kill_feed.remove(kill)
+
+
 running = True
 create_map()
 
@@ -433,7 +523,8 @@ if spawn_enemy:
     for i in range(num_enemy):
         spawn_location = valid_spawn(world)
         characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, outputs)))
-                
+
+fps_counter = 0
 #Main loop
 while running:
     for event in pygame.event.get():
@@ -448,11 +539,16 @@ while running:
                     break
 
     draw_map()
-
+    fps_counter += 1
     for character in characters:
         character.draw_arrow(screen)
         character.move()  
+        character.render_name()
         screen.blit(character.image, character.rect)
+        if fps_counter == fps:
+            character.score += time_survived_score
+    if fps_counter == fps:
+            fps_counter = 0
 
     for projectile in projectiles:
         projectile.move()
@@ -460,6 +556,11 @@ while running:
 
     characters[0].draw_sight_lines(screen)
 
+    top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
+    draw_highscore_list(top_performers)
+
+    draw_kill_feed(kill_feed)
+    
     #---Debugging---
     #pygame.draw.rect(screen, (0, 255, 0), player_1.rect, 2)
     #for i in world:
