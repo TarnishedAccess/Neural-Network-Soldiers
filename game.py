@@ -5,6 +5,7 @@ import json
 import os
 import numpy as np
 from neural_network.neural_network import *
+from genetic_algorithms import *
 
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
@@ -25,6 +26,8 @@ tile_size = 16
 #this seems to have worked out well enough
 fps = 30
 
+generation = 0
+
 team_1_color = (50, 50, 250)
 team_2_color = (250, 50, 50)
 
@@ -43,6 +46,14 @@ staring_wall_score = -0.25
 wall_staring_timer = 3 * fps
 
 projectile_max_distance = tile_size * scale * 6
+
+#Generation Parameters
+#every generation will end in "hardcap" no matter what, but will end earlier if no kills happen in a "softcap" interval
+next_gen_hardcap = 15
+next_gen_softcap = 5
+
+hardcap_timer = 0
+softcap_timer = 0
 
 kill_announcements = ["Killed", "Neutralized", "Eliminated", "Terminated", "Exterminated", "Eradicated"]
 betrayal_announcements = ["Sabotaged", "Betrayed", "Backstabbed", "Doublecrossed", "Tricked", "Deceived"]
@@ -68,8 +79,8 @@ class Projectile():
         self.origin = origin
         self.distance_travelled = 0
         self.transparency = 255
-
     def collide(self, x, y):
+        global softcap_timer
         for character in characters:
             if character is not self.origin:
                 if character.rect.colliderect(x, y, self.width, self.height):
@@ -82,6 +93,7 @@ class Projectile():
                     kill_feed.append([self.origin, character, kill_popup_timer, choice])
                     characters.remove(character)
                     graveyard.append(character)
+                    softcap_timer = 0
                     if self in projectiles:
                         projectiles.remove(self)
                     return True
@@ -297,7 +309,10 @@ class Player():
         return False
     
     def render_name(self):
-        text_surface = font.render(self.name, True, (255, 255, 255))
+        if top_performers[0] == self:
+            text_surface = font.render(self.name, True, (255, 215, 0))
+        else:
+            text_surface = font.render(self.name, True, (255, 255, 255))
         text_rect = text_surface.get_rect()
         text_rect.center = (self.rect.centerx, self.rect.centery + self.height // 2 + 10)
         screen.blit(text_surface, text_rect)
@@ -451,7 +466,7 @@ font1_size = 13
 font = pygame.font.Font(None, font1_size)
 font2_size = 17
 font2 = pygame.font.Font(None, font2_size)
-font3_size = 22
+font3_size = 30
 font3 = pygame.font.Font(None, font3_size)
 
 #Display setup
@@ -494,11 +509,6 @@ pillar_img = pygame.image.load(os.path.join(tile_folder, "pillar.png"))
 pillar_rect = pillar_img.get_rect()
 pillar_img = pygame.transform.scale(pillar_img, (pillar_rect.width * scale, pillar_rect.height * scale))
 
-world = []
-characters = []
-graveyard = []
-projectiles = []
-kill_feed = []
 
 #Drawing the map
 def create_map():
@@ -586,9 +596,49 @@ def draw_kill_feed(kill_feed: list):
         if kill[2] == 0:
             kill_feed.remove(kill)
 
+def reset_world(performers):
+
+    global characters, graveyard, projectiles, kill_feed, softcap_timer, hardcap_timer
+
+    characters = []
+    graveyard = []
+    projectiles = []
+    kill_feed = []
+
+    softcap_timer = 0
+    hardcap_timer = 0
+
+    for i in range(len(performers)):
+        #allocate teams so they're not too heavily onesided (this does favor blue though, will fix later)
+        performers[i].team = (i % 2) + 1
+        spawn_location = valid_spawn(world)
+        performers[i].rect.x = spawn_location[0]
+        performers[i].rect.y = spawn_location[1]
+        performers[i].score = 0
+        characters.append(performers[i])
+
+    if spawn_friendly:
+        for i in range(num_friendly - len(performers)//2):
+            spawn_location = valid_spawn(world)
+            characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+
+    if spawn_enemy:
+        for i in range(num_enemy - len(performers)//2):
+            spawn_location = valid_spawn(world)
+            characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+
+world = []
+create_map()
+
+
+
+#TODO: START GENERATIONAL WORK HERE
+characters = []
+graveyard = []
+projectiles = []
+kill_feed = []
 
 running = True
-create_map()
 
 #Spawning
 if spawn_player:
@@ -605,6 +655,7 @@ if spawn_enemy:
         spawn_location = valid_spawn(world)
         characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
+top_performers = characters[:highscore_size]
 fps_counter = 0
 #Main loop
 while running:
@@ -613,7 +664,6 @@ while running:
             running = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mouse_x, mouse_y = pygame.mouse.get_pos()
-            #print(mouse_x, mouse_y)
             for i in range(len(characters)):
                 if characters[i].rect.collidepoint(mouse_x, mouse_y):
                     characters[i], characters[0] = characters[0], characters[i]
@@ -628,7 +678,10 @@ while running:
         screen.blit(character.image, character.rect)
         if fps_counter == fps:
             character.score += time_survived_score
+
     if fps_counter == fps:
+            hardcap_timer += 1
+            softcap_timer += 1
             fps_counter = 0
 
     for projectile in projectiles:
@@ -645,22 +698,37 @@ while running:
 
     characters[0].draw_sight_lines(screen)
     characters[0].render_stats()
-    #print(characters[0].camping_stopwatch)
-    #print(characters[0].wall_staring_stopwatch)
 
     top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
     draw_highscore_list(top_performers)
     draw_kill_feed(kill_feed)
     
-    #---Debugging---
-    #pygame.draw.rect(screen, (0, 255, 0), player_1.rect, 2)
-    #for i in world:
-    #    if i.passable:
-    #        pygame.draw.rect(screen, (255, 255, 255), i.rect, 2)
-    #    else:
-    #        pygame.draw.rect(screen, (255, 0, 0), i.rect, 2)
-    #---------------
-    
+    text_surface = font3.render(f"Generation: {generation}", True, (255, 255, 255))
+    text_rect = text_surface.get_rect()
+    text_rect.centerx = screen_width // 2
+    text_rect.y = 10
+    screen.blit(text_surface, text_rect)
+
+    text_surface = font2.render(f"Soft timer: {softcap_timer} / {next_gen_softcap}", True, (255, 255, 255))
+    text_rect = text_surface.get_rect()
+    text_rect.centerx = screen_width // 3.5
+    text_rect.y = 10
+    screen.blit(text_surface, text_rect)
+
+    text_surface = font2.render(f"Hard timer: {hardcap_timer} / {next_gen_hardcap}", True, (255, 255, 255))
+    text_rect = text_surface.get_rect()
+    text_rect.centerx = screen_width // 3.5
+    text_rect.y = 10 + font2_size
+    screen.blit(text_surface, text_rect)
+
+    if softcap_timer == next_gen_softcap or hardcap_timer == next_gen_hardcap:
+        #Genetic Algorithms
+        performers = selection(characters, graveyard, 2)
+
+        #pass characters that are going to carry over as parameter into the function
+        reset_world(performers)
+        generation += 1
+
     pygame.display.update()
     pygame.time.Clock().tick(fps)
 
