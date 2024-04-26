@@ -6,6 +6,7 @@ import os
 import numpy as np
 from neural_network.neural_network import *
 from genetic_algorithms import *
+from auxillary import *
 
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
@@ -413,6 +414,7 @@ class Character(Player):
         self.rect.y += dy
 
     def render_stats(self):
+
         text_surface = font2.render(f"Selected: {self.name}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
         text_rect.x, text_rect.y = 10, screen_height - 200
@@ -509,6 +511,8 @@ pillar_img = pygame.image.load(os.path.join(tile_folder, "pillar.png"))
 pillar_rect = pillar_img.get_rect()
 pillar_img = pygame.transform.scale(pillar_img, (pillar_rect.width * scale, pillar_rect.height * scale))
 
+button_img = pygame.image.load(os.path.join(tile_folder, "button.png"))
+button_pressed_img = pygame.image.load(os.path.join(tile_folder, "button_pressed.png"))
 
 #Drawing the map
 def create_map():
@@ -611,6 +615,13 @@ def reset_world(performers):
     for i in range(len(performers)):
         #allocate teams so they're not too heavily onesided (this does favor blue though, will fix later)
         performers[i].team = (i % 2) + 1
+        if performers[i].team == 1:
+            performers[i].image = random.choice(team1_sprites)
+        else:
+            performers[i].image = random.choice(team2_sprites)
+        performers[i].rect = performers[i].image.get_rect()
+        performers[i].image = pygame.transform.scale(performers[i].image, (performers[i].rect.width * scale, performers[i].rect.height * scale))
+        performers[i].rect = performers[i].image.get_rect()
         spawn_location = valid_spawn(world)
         performers[i].rect.x = spawn_location[0]
         performers[i].rect.y = spawn_location[1]
@@ -659,15 +670,8 @@ top_performers = characters[:highscore_size]
 fps_counter = 0
 #Main loop
 while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            for i in range(len(characters)):
-                if characters[i].rect.collidepoint(mouse_x, mouse_y):
-                    characters[i], characters[0] = characters[0], characters[i]
-                    break
+
+    buttons = []
 
     draw_map()
     fps_counter += 1
@@ -695,9 +699,13 @@ while running:
         projectile.move()
         screen.blit(projectile.sprite, projectile.rect)
 
-
     characters[0].draw_sight_lines(screen)
     characters[0].render_stats()
+
+    text_surface = font2.render("SAVE", True, (255, 255, 255))
+    button = Button(100, 50, 10, screen_height - 200 + font2_size * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"))
+    button.draw(screen)
+    buttons.append(button)
 
     top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
     draw_highscore_list(top_performers)
@@ -728,6 +736,21 @@ while running:
         #pass characters that are going to carry over as parameter into the function
         reset_world(performers)
         generation += 1
+    
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            for button in buttons:
+                if button.button_rect.collidepoint(mouse_x, mouse_y):
+                    button.function()
+
+            else:
+                for i in range(len(characters)):
+                    if characters[i].rect.collidepoint(mouse_x, mouse_y):
+                        characters[i], characters[0] = characters[0], characters[i]
+                        break
 
     pygame.display.update()
     pygame.time.Clock().tick(fps)

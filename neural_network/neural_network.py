@@ -1,5 +1,8 @@
 import numpy as np
 import random
+import json
+from datetime import datetime
+import os
 
 class NeuralNetwork():
     def __init__(self, inputs, hidden, hidden2, outputs):
@@ -37,3 +40,12 @@ class NeuralNetwork():
         Z3 = np.dot(self.W3, A2) + self.B3
         A3 = self.ReLU(Z3)
         return A3
+
+    def save(self, filename):
+        arrays = [self.W1, self.B1, self.W2, self.B2, self.W3, self.B3]
+        list_conversion = [array.tolist() for array in arrays]
+        datetime_now = datetime.now()
+        datetime_now = datetime_now.strftime("%Y%m%d%H%M%S")
+        save_path = os.path.join("neural_network", "network_storage", filename)
+        with open(f"{save_path}_{datetime_now}.json", "w") as network_file:
+            json.dump(list_conversion, network_file)

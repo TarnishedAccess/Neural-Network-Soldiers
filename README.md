@@ -27,7 +27,7 @@
 [X] optimize model 	                                                    
 [X] implement score system  
 [X] implement selection function  
-[ ] implement crossing function  <= YOU ARE HERE
+[ ] implement crossing function  <= YOU ARE HERE  
 [ ] implement mutation function  
 [ ] finishing touches  
 
