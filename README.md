@@ -63,7 +63,12 @@ Neural Net OK
 Collision Detection
 Firing
 
-22/05/2024
+22/04/2024
 Neural Net connected to sprites
 no Learning
 random walks
+
+
+29/04/2024
+Fitness pondérés survie + kill_enemy - kill_friend + distance
+Sélection best fitness
