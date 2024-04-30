@@ -22,7 +22,7 @@ spawn_friendly = True
 num_friendly = 8
 highscore_size = 6
 #scales everything up or down
-scale = 1.5
+#scale = 1.5
 tile_size = 16
 #this seems to have worked out well enough
 fps = 30
@@ -34,19 +34,6 @@ team_2_color = (250, 50, 50)
 
 kill_popup_timer = fps * 2
 
-#Score Parameters
-enemy_kill_score = 30
-friendly_kill_score = -40
-bullet_fired_score = -0.1
-time_survived_score = 1
-camping_cutoff = 50 * scale
-camping_timer = 4 * fps
-movement_reward = 0.25
-
-staring_wall_score = -0.25
-wall_staring_timer = 3 * fps
-
-projectile_max_distance = tile_size * scale * 6
 
 #Generation Parameters
 #every generation will end in "hardcap" no matter what, but will end earlier if no kills happen in a "softcap" interval
@@ -417,32 +404,32 @@ class Character(Player):
 
         text_surface = font2.render(f"Selected: {self.name}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
-        text_rect.x, text_rect.y = 10, screen_height - 200
+        text_rect.x, text_rect.y = 10, screen_height - (133 * scale)
         screen.blit(text_surface, text_rect)
 
         text_surface = font2.render(f"Score: {self.score}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
-        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size
+        text_rect.x, text_rect.y = 10, screen_height - (133 * scale) + font2_size + font_offset
         screen.blit(text_surface, text_rect)
 
         text_surface = font2.render(f"Team: {self.team}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
-        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 2
+        text_rect.x, text_rect.y = 10, screen_height - (133 * scale) + font2_size * 2 + font_offset * 2
         screen.blit(text_surface, text_rect)
 
         text_surface = font2.render(f"Movement Neuron: {round(self.actions[0], 5)}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
-        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 3
+        text_rect.x, text_rect.y = 10, screen_height - (133 * scale) + font2_size * 3 + font_offset * 3
         screen.blit(text_surface, text_rect)
 
         text_surface = font2.render(f"Turning Neuron: {round(self.actions[1], 5)}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
-        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 4
+        text_rect.x, text_rect.y = 10, screen_height - (133 * scale) + font2_size * 4 + font_offset * 4
         screen.blit(text_surface, text_rect)
 
         text_surface = font2.render(f"Shooting Neuron: {round(self.actions[2], 5)}", True, (255, 255, 255))
         text_rect = text_surface.get_rect()
-        text_rect.x, text_rect.y = 10, screen_height - 200 + font2_size * 5
+        text_rect.x, text_rect.y = 10, screen_height - (133 * scale) + font2_size * 5 + font_offset * 5
         screen.blit(text_surface, text_rect)
 
 #Parameters
@@ -452,6 +439,8 @@ walls_folder = os.path.join(tile_folder, "walls")
 team1_folder = os.path.join(tile_folder, "T1")
 team2_folder = os.path.join(tile_folder, "T2")
 projectile_folder = os.path.join(tile_folder, "projectiles")
+obstacle_folder = os.path.join(tile_folder, "obstacles")
+fonts_folder = "fonts"
 
 #Neural Network Parameters
 inputs = 21
@@ -464,28 +453,72 @@ height = len(map_data)
 
 pygame.init()
 
-font1_size = 13
-font = pygame.font.Font(None, font1_size)
-font2_size = 17
-font2 = pygame.font.Font(None, font2_size)
-font3_size = 30
-font3 = pygame.font.Font(None, font3_size)
+
+#we have main screen
+#we have tile size
+#we have game area size
+
+#we want to find game area size
+#scale it to main screen size
+#then stretch tile size to fit main screen
+#but we can't do that because game area size depends on tile size
 
 #Display setup
+display_info = pygame.display.Info()
+display_width = display_info.current_w
+display_height = display_info.current_h
+
+game_width = width * tile_size
+game_height = height * tile_size
+
+scale = min(display_width/game_width, display_height/game_height)
+
+screen_width = game_width * scale
+screen_height = game_height * scale
+screen = pygame.display.set_mode((screen_width, screen_height))
+
+"""
 screen_width = width * tile_size * scale
 screen_height = height * tile_size * scale
 screen = pygame.display.set_mode((screen_width, screen_height))
+"""
+#Fonts
+fontStyle_medieval = os.path.join(fonts_folder, "Alkhemikal.ttf")
+font1_size = 10 * int(scale)
+font = pygame.font.Font(fontStyle_medieval, font1_size)
+font2_size = 14 * int(scale)
+font2 = pygame.font.Font(fontStyle_medieval, font2_size)
+font3_size = 22 * int(scale)
+font3 = pygame.font.Font(fontStyle_medieval, font3_size)
+font_offset = 4 * scale
+
+#Score Parameters
+enemy_kill_score = 30
+friendly_kill_score = -40
+bullet_fired_score = -0.1
+time_survived_score = 1
+camping_cutoff = 50 * scale
+camping_timer = 4 * fps
+movement_reward = 0.25
+
+staring_wall_score = -0.25
+wall_staring_timer = 3 * fps
+
+projectile_max_distance = tile_size * scale * 6
+
 
 #Load images
-innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (tile_size * scale, tile_size * scale))
+upscale_factor = math.ceil(tile_size * scale)
+
+innerwall_img = pygame.transform.scale(pygame.image.load(os.path.join(tile_folder, "rock.png")), (upscale_factor, upscale_factor))
 
 floors = []
 for floor_img in os.listdir(floors_folder):
-    floors.append(pygame.transform.scale(pygame.image.load(os.path.join(floors_folder, floor_img)), (tile_size * scale, tile_size * scale)))
+    floors.append(pygame.transform.scale(pygame.image.load(os.path.join(floors_folder, floor_img)), (upscale_factor, upscale_factor)))
 
 walls = []
 for wall_img in os.listdir(walls_folder):
-    walls.append(pygame.transform.scale(pygame.image.load(os.path.join(walls_folder, wall_img)), (tile_size * scale, tile_size * scale)))
+    walls.append(pygame.transform.scale(pygame.image.load(os.path.join(walls_folder, wall_img)), (upscale_factor, upscale_factor)))
 
 team1_sprites = []
 for team1_img in os.listdir(team1_folder):
@@ -503,13 +536,12 @@ bullet_img2 = pygame.image.load(os.path.join(projectile_folder, "bullet2.png")).
 bullet_rect2 = bullet_img2.get_rect()
 bullet_img2 = pygame.transform.scale(bullet_img2, (bullet_rect2.width * scale, bullet_rect2.height * scale))
 
-box_img = pygame.image.load(os.path.join(tile_folder, "box.png"))
-box_rect = box_img.get_rect()
-box_img = pygame.transform.scale(box_img, (box_rect.width * scale, box_rect.height * scale))
-
-pillar_img = pygame.image.load(os.path.join(tile_folder, "pillar.png"))
-pillar_rect = pillar_img.get_rect()
-pillar_img = pygame.transform.scale(pillar_img, (pillar_rect.width * scale, pillar_rect.height * scale))
+obstacles = []
+for obstacle_image in os.listdir(obstacle_folder):
+    obstacle_img = pygame.image.load(os.path.join(obstacle_folder, obstacle_image))
+    obstacle_rect = obstacle_img.get_rect()
+    obstacle_image = pygame.transform.scale(obstacle_img, (obstacle_rect.width * scale, obstacle_rect.height * scale))
+    obstacles.append(obstacle_image)
 
 button_img = pygame.image.load(os.path.join(tile_folder, "button.png"))
 button_pressed_img = pygame.image.load(os.path.join(tile_folder, "button_pressed.png"))
@@ -528,18 +560,22 @@ def create_map():
             elif tile == 2:
                 image = random.choice(walls)
                 world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, False))
+            #11 and 12 are the exact same due to a refactor. Will change generation code to remove redundancy later but just cba rn. TODO.
             elif tile == 11:
                 image = random.choice(floors)
-                x_offset = (tile_size * scale - pillar_img.get_width()) // 2
-                y_offset = (tile_size * scale - pillar_img.get_height()) // 2
+                obstacle_image = random.choice(obstacles)
+                x_offset = (tile_size * scale - obstacle_image.get_width()) // 2
+                y_offset = (tile_size * scale - obstacle_image.get_height()) // 2
                 world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
-                world.append(Tile(pillar_img, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
+                world.append(Tile(obstacle_image, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
             elif tile == 12:
                 image = random.choice(floors)
-                x_offset = (tile_size * scale - box_img.get_width()) // 2
-                y_offset = (tile_size * scale - box_img.get_height()) // 2
+                obstacle_image = random.choice(obstacles)
+                #obstacle_image = pygame.transform.rotate(obstacle_image, random.randint(0, 360))
+                x_offset = (tile_size * scale - obstacle_image.get_width()) // 2
+                y_offset = (tile_size * scale - obstacle_image.get_height()) // 2
                 world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
-                world.append(Tile(box_img, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
+                world.append(Tile(obstacle_image, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
 
 def draw_map():
     for tile in world:
@@ -562,7 +598,7 @@ def draw_highscore_list(top_performers):
         start_height += font2_size
 
 def draw_kill_feed(kill_feed: list):
-    start_width = screen_width - 200
+    start_width = screen_width - (133 * scale)
     start_height = 10
     #[killer, victim, timer, adjective]
     kill_feed.sort(key=lambda x: x[2], reverse=False)
@@ -589,7 +625,7 @@ def draw_kill_feed(kill_feed: list):
             color = team_2_color
         text_surface = font2.render(f"{kill_feed[i][1].name}", True, color)
         text_rect = text_surface.get_rect()
-        text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3 + font2_size * len(kill_feed[i][3]) // 3 + 20
+        text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3 + font2_size * len(kill_feed[i][3]) // 3 + (20 * scale)
         text_rect.y = start_height
         screen.blit(text_surface, text_rect)
 
@@ -671,6 +707,10 @@ fps_counter = 0
 #Main loop
 while running:
 
+    print(f"screen width: {screen_width}, screen height: {screen_height}")
+    print(f"game width: {game_width}, game height: {game_height}")
+    print(f"scale: {scale}")
+
     buttons = []
 
     draw_map()
@@ -703,7 +743,7 @@ while running:
     characters[0].render_stats()
 
     text_surface = font2.render("SAVE", True, (255, 255, 255))
-    button = Button(100, 50, 10, screen_height - 200 + font2_size * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"))
+    button = Button(66 * scale, 33 * scale, 6 * scale, screen_height - (133 * scale) + font2_size * 6 + + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"))
     button.draw(screen)
     buttons.append(button)
 
