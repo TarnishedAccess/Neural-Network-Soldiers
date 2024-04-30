@@ -7,6 +7,12 @@ import numpy as np
 from neural_network.neural_network import *
 from genetic_algorithms import *
 from auxillary import *
+from enum import Enum
+
+class GameState(Enum):
+    MAIN_MENU = 0
+    PLAYING = 1
+    QUIT = 2
 
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
@@ -356,23 +362,8 @@ class Character(Player):
         else:
             self.o += self.turn_speed * abs(turn_decision * 2)
 
-        """
-        if self.actions[0][1] <= 0.33:
-            self.o -= self.turn_speed
-        elif self.actions[0][1] >= 0.66:
-            self.o += self.turn_speed
-        """
-
         radians = math.radians(self.o)
 
-        """
-        if self.actions[0][0] <= 0.33:
-            dx -= self.speed * math.cos(radians)
-            dy += self.speed * math.sin(radians)
-        elif self.actions[0][0] >= 0.66:
-            dx += self.speed * math.cos(radians)
-            dy -= self.speed * math.sin(radians)
-        """
         movement_decision = self.actions[0] - 0.5
         if movement_decision < 0:
             dx -= self.speed * math.cos(radians) * abs(movement_decision * 2)
@@ -453,16 +444,6 @@ height = len(map_data)
 
 pygame.init()
 
-
-#we have main screen
-#we have tile size
-#we have game area size
-
-#we want to find game area size
-#scale it to main screen size
-#then stretch tile size to fit main screen
-#but we can't do that because game area size depends on tile size
-
 #Display setup
 display_info = pygame.display.Info()
 display_width = display_info.current_w
@@ -477,11 +458,6 @@ screen_width = game_width * scale
 screen_height = game_height * scale
 screen = pygame.display.set_mode((screen_width, screen_height))
 
-"""
-screen_width = width * tile_size * scale
-screen_height = height * tile_size * scale
-screen = pygame.display.set_mode((screen_width, screen_height))
-"""
 #Fonts
 fontStyle_medieval = os.path.join(fonts_folder, "Alkhemikal.ttf")
 font1_size = 10 * int(scale)
@@ -490,22 +466,9 @@ font2_size = 14 * int(scale)
 font2 = pygame.font.Font(fontStyle_medieval, font2_size)
 font3_size = 22 * int(scale)
 font3 = pygame.font.Font(fontStyle_medieval, font3_size)
+font4_size = 40 * int(scale)
+font4 = pygame.font.Font(fontStyle_medieval, font4_size)
 font_offset = 4 * scale
-
-#Score Parameters
-enemy_kill_score = 30
-friendly_kill_score = -40
-bullet_fired_score = -0.1
-time_survived_score = 1
-camping_cutoff = 50 * scale
-camping_timer = 4 * fps
-movement_reward = 0.25
-
-staring_wall_score = -0.25
-wall_staring_timer = 3 * fps
-
-projectile_max_distance = tile_size * scale * 6
-
 
 #Load images
 upscale_factor = math.ceil(tile_size * scale)
@@ -546,253 +509,316 @@ for obstacle_image in os.listdir(obstacle_folder):
 button_img = pygame.image.load(os.path.join(tile_folder, "button.png"))
 button_pressed_img = pygame.image.load(os.path.join(tile_folder, "button_pressed.png"))
 
-#Drawing the map
-def create_map():
-    for y in range(height):
-        for x in range(width):
-            tile = map_data[y][x]
 
-            if tile == -1:
-                world.append(Tile(innerwall_img, x * tile_size * scale, y * tile_size * scale, False))
-            elif tile == 0:
-                image = random.choice(floors)
-                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
-            elif tile == 2:
-                image = random.choice(walls)
-                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, False))
-            #11 and 12 are the exact same due to a refactor. Will change generation code to remove redundancy later but just cba rn. TODO.
-            elif tile == 11:
-                image = random.choice(floors)
-                obstacle_image = random.choice(obstacles)
-                x_offset = (tile_size * scale - obstacle_image.get_width()) // 2
-                y_offset = (tile_size * scale - obstacle_image.get_height()) // 2
-                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
-                world.append(Tile(obstacle_image, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
-            elif tile == 12:
-                image = random.choice(floors)
-                obstacle_image = random.choice(obstacles)
-                #obstacle_image = pygame.transform.rotate(obstacle_image, random.randint(0, 360))
-                x_offset = (tile_size * scale - obstacle_image.get_width()) // 2
-                y_offset = (tile_size * scale - obstacle_image.get_height()) // 2
-                world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
-                world.append(Tile(obstacle_image, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
+game_state = GameState.MAIN_MENU
 
-def draw_map():
-    for tile in world:
-        screen.blit(tile.sprite, tile.rect)
+def set_game_state(x):
+    global game_state
+    game_state = x
 
-def valid_spawn(world_data):
-    valid_spawns = [tile for tile in world_data if tile.passable]
-    chosen_spawn = random.choice(valid_spawns)
-    return [chosen_spawn.rect.x, chosen_spawn.rect.y]
+while True:
+    while game_state == GameState.MAIN_MENU:
+        screen.fill((0, 0, 0))
+        titleText = font4.render("NEURAL DUNGEON", True, (255, 255, 255))
+        titleRect = titleText.get_rect()
+        titleRect.centerx = screen_width / 2
+        titleRect.centery = 50 * scale
+        screen.blit(titleText, titleRect)
 
-def draw_highscore_list(top_performers):
-    start_width = 10
-    start_height = 10
-    for top_performer in top_performers:
-        text_surface = font2.render(f"{top_performer.name}: {top_performer.score}", True, (255, 255, 255))
-        text_rect = text_surface.get_rect()
-        text_rect.x = start_width
-        text_rect.y = start_height
-        screen.blit(text_surface, text_rect)
-        start_height += font2_size
+        buttons = []
+        startButton_Surface = font2.render("START", True, (255, 255, 255))
+        start_button = Button(66 * scale, 33 * scale, screen_width/2, 200 * scale, button_img, button_pressed_img, startButton_Surface, lambda: set_game_state(GameState.PLAYING))
+        start_button.draw(screen)
+        buttons.append(start_button)
 
-def draw_kill_feed(kill_feed: list):
-    start_width = screen_width - (133 * scale)
-    start_height = 10
-    #[killer, victim, timer, adjective]
-    kill_feed.sort(key=lambda x: x[2], reverse=False)
-    for i in range(len(kill_feed)):
-        if kill_feed[i][0].team == 1:
-            color = team_1_color
-        else:
-            color = team_2_color
-        text_surface = font2.render(f"{kill_feed[i][0].name}", True, color)
-        text_rect = text_surface.get_rect()
-        text_rect.x = start_width
-        text_rect.y = start_height
-        screen.blit(text_surface, text_rect)
+        quitButton_Surface = font2.render("QUIT", True, (255, 255, 255))
+        quit_button = Button(66 * scale, 33 * scale, screen_width/2, 250 * scale, button_img, button_pressed_img, quitButton_Surface, lambda: set_game_state(GameState.QUIT))
+        quit_button.draw(screen)
+        buttons.append(quit_button)
 
-        text_surface = font2.render(f"{kill_feed[i][3]}", True, (255, 255, 255))
-        text_rect = text_surface.get_rect()
-        text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3  + 10
-        text_rect.y = start_height
-        screen.blit(text_surface, text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                game_state = GameState.QUIT
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    game_state = GameState.QUIT
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                for button in buttons:
+                    if button.button_rect.collidepoint(mouse_x, mouse_y):
+                        button.function()
 
-        if kill_feed[i][1].team == 1:
-            color = team_1_color
-        else:
-            color = team_2_color
-        text_surface = font2.render(f"{kill_feed[i][1].name}", True, color)
-        text_rect = text_surface.get_rect()
-        text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3 + font2_size * len(kill_feed[i][3]) // 3 + (20 * scale)
-        text_rect.y = start_height
-        screen.blit(text_surface, text_rect)
+        pygame.display.flip()
 
-        kill_feed[i][2] -= 1
-        start_height += font2_size
+    while game_state == GameState.QUIT:
+        pygame.quit()
+        exit()
 
-    for kill in kill_feed:
-        if kill[2] == 0:
-            kill_feed.remove(kill)
+    while game_state == GameState.PLAYING:
 
-def reset_world(performers):
+        #Score Parameters
+        enemy_kill_score = 30
+        friendly_kill_score = -40
+        bullet_fired_score = -0.1
+        time_survived_score = 1
+        camping_cutoff = 50 * scale
+        camping_timer = 4 * fps
+        movement_reward = 0.25
 
-    global characters, graveyard, projectiles, kill_feed, softcap_timer, hardcap_timer
+        staring_wall_score = -0.25
+        wall_staring_timer = 3 * fps
 
-    characters = []
-    graveyard = []
-    projectiles = []
-    kill_feed = []
+        projectile_max_distance = tile_size * scale * 6
 
-    softcap_timer = 0
-    hardcap_timer = 0
+        #Drawing the map
+        def create_map():
+            for y in range(height):
+                for x in range(width):
+                    tile = map_data[y][x]
 
-    for i in range(len(performers)):
-        #allocate teams so they're not too heavily onesided (this does favor blue though, will fix later)
-        performers[i].team = (i % 2) + 1
-        if performers[i].team == 1:
-            performers[i].image = random.choice(team1_sprites)
-        else:
-            performers[i].image = random.choice(team2_sprites)
-        performers[i].rect = performers[i].image.get_rect()
-        performers[i].image = pygame.transform.scale(performers[i].image, (performers[i].rect.width * scale, performers[i].rect.height * scale))
-        performers[i].rect = performers[i].image.get_rect()
-        spawn_location = valid_spawn(world)
-        performers[i].rect.x = spawn_location[0]
-        performers[i].rect.y = spawn_location[1]
-        performers[i].score = 0
-        characters.append(performers[i])
+                    if tile == -1:
+                        world.append(Tile(innerwall_img, x * tile_size * scale, y * tile_size * scale, False))
+                    elif tile == 0:
+                        image = random.choice(floors)
+                        world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
+                    elif tile == 2:
+                        image = random.choice(walls)
+                        world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, False))
+                    #11 and 12 are the exact same due to a refactor. Will change generation code to remove redundancy later but just cba rn. TODO.
+                    elif tile == 11:
+                        image = random.choice(floors)
+                        obstacle_image = random.choice(obstacles)
+                        x_offset = (tile_size * scale - obstacle_image.get_width()) // 2
+                        y_offset = (tile_size * scale - obstacle_image.get_height()) // 2
+                        world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
+                        world.append(Tile(obstacle_image, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
+                    elif tile == 12:
+                        image = random.choice(floors)
+                        obstacle_image = random.choice(obstacles)
+                        #obstacle_image = pygame.transform.rotate(obstacle_image, random.randint(0, 360))
+                        x_offset = (tile_size * scale - obstacle_image.get_width()) // 2
+                        y_offset = (tile_size * scale - obstacle_image.get_height()) // 2
+                        world.append(Tile(image, x * tile_size * scale, y * tile_size * scale, True))
+                        world.append(Tile(obstacle_image, x * tile_size * scale + x_offset, y * tile_size * scale + y_offset, False))
 
-    if spawn_friendly:
-        for i in range(num_friendly - len(performers)//2):
+        def draw_map():
+            for tile in world:
+                screen.blit(tile.sprite, tile.rect)
+
+        def valid_spawn(world_data):
+            valid_spawns = [tile for tile in world_data if tile.passable]
+            chosen_spawn = random.choice(valid_spawns)
+            return [chosen_spawn.rect.x, chosen_spawn.rect.y]
+
+        def draw_highscore_list(top_performers):
+            start_width = 10
+            start_height = 10
+            for top_performer in top_performers:
+                text_surface = font2.render(f"{top_performer.name}: {top_performer.score}", True, (255, 255, 255))
+                text_rect = text_surface.get_rect()
+                text_rect.x = start_width
+                text_rect.y = start_height
+                screen.blit(text_surface, text_rect)
+                start_height += font2_size
+
+        def draw_kill_feed(kill_feed: list):
+            start_width = screen_width - (133 * scale)
+            start_height = 10
+            #[killer, victim, timer, adjective]
+            kill_feed.sort(key=lambda x: x[2], reverse=False)
+            for i in range(len(kill_feed)):
+                if kill_feed[i][0].team == 1:
+                    color = team_1_color
+                else:
+                    color = team_2_color
+                text_surface = font2.render(f"{kill_feed[i][0].name}", True, color)
+                text_rect = text_surface.get_rect()
+                text_rect.x = start_width
+                text_rect.y = start_height
+                screen.blit(text_surface, text_rect)
+
+                text_surface = font2.render(f"{kill_feed[i][3]}", True, (255, 255, 255))
+                text_rect = text_surface.get_rect()
+                text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3  + 10
+                text_rect.y = start_height
+                screen.blit(text_surface, text_rect)
+
+                if kill_feed[i][1].team == 1:
+                    color = team_1_color
+                else:
+                    color = team_2_color
+                text_surface = font2.render(f"{kill_feed[i][1].name}", True, color)
+                text_rect = text_surface.get_rect()
+                text_rect.x = start_width + font2_size * len(kill_feed[i][0].name) // 3 + font2_size * len(kill_feed[i][3]) // 3 + (20 * scale)
+                text_rect.y = start_height
+                screen.blit(text_surface, text_rect)
+
+                kill_feed[i][2] -= 1
+                start_height += font2_size
+
+            for kill in kill_feed:
+                if kill[2] == 0:
+                    kill_feed.remove(kill)
+
+        def reset_world(performers):
+
+            global characters, graveyard, projectiles, kill_feed, softcap_timer, hardcap_timer
+
+            characters = []
+            graveyard = []
+            projectiles = []
+            kill_feed = []
+
+            softcap_timer = 0
+            hardcap_timer = 0
+
+            for i in range(len(performers)):
+                #allocate teams so they're not too heavily onesided (this does favor blue though, will fix later)
+                performers[i].team = (i % 2) + 1
+                if performers[i].team == 1:
+                    performers[i].image = random.choice(team1_sprites)
+                else:
+                    performers[i].image = random.choice(team2_sprites)
+                performers[i].rect = performers[i].image.get_rect()
+                performers[i].image = pygame.transform.scale(performers[i].image, (performers[i].rect.width * scale, performers[i].rect.height * scale))
+                performers[i].rect = performers[i].image.get_rect()
+                spawn_location = valid_spawn(world)
+                performers[i].rect.x = spawn_location[0]
+                performers[i].rect.y = spawn_location[1]
+                performers[i].score = 0
+                characters.append(performers[i])
+
+            if spawn_friendly:
+                for i in range(num_friendly - len(performers)//2):
+                    spawn_location = valid_spawn(world)
+                    characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+
+            if spawn_enemy:
+                for i in range(num_enemy - len(performers)//2):
+                    spawn_location = valid_spawn(world)
+                    characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+
+        world = []
+        create_map()
+
+        #TODO: START GENERATIONAL WORK HERE
+        characters = []
+        graveyard = []
+        projectiles = []
+        kill_feed = []
+
+        running = True
+
+        #Spawning
+        if spawn_player:
             spawn_location = valid_spawn(world)
-            characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+            characters.append(Player(spawn_location[0], spawn_location[1], 1))
 
-    if spawn_enemy:
-        for i in range(num_enemy - len(performers)//2):
-            spawn_location = valid_spawn(world)
-            characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+        if spawn_friendly:
+            for i in range(num_friendly):
+                spawn_location = valid_spawn(world)
+                characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
-world = []
-create_map()
+        if spawn_enemy:
+            for i in range(num_enemy):
+                spawn_location = valid_spawn(world)
+                characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
+        top_performers = characters[:highscore_size]
+        fps_counter = 0
+        #Main loop
+        while running:
 
+            buttons = []
 
-#TODO: START GENERATIONAL WORK HERE
-characters = []
-graveyard = []
-projectiles = []
-kill_feed = []
+            draw_map()
+            fps_counter += 1
+            for character in characters:
+                character.draw_arrow(screen)
+                character.move()  
+                character.render_name()
+                screen.blit(character.image, character.rect)
+                if fps_counter == fps:
+                    character.score += time_survived_score
 
-running = True
+            if fps_counter == fps:
+                    hardcap_timer += 1
+                    softcap_timer += 1
+                    fps_counter = 0
 
-#Spawning
-if spawn_player:
-    spawn_location = valid_spawn(world)
-    characters.append(Player(spawn_location[0], spawn_location[1], 1))
+            for projectile in projectiles:
+                if projectile.distance_travelled > projectile_max_distance:
+                    projectile.sprite.fill((255, 255, 255, projectile.transparency), None, pygame.BLEND_RGBA_MULT)
+                    projectile.transparency -= 50
+                
+                if projectile.transparency <= 0:
+                    projectiles.remove(projectile)
 
-if spawn_friendly:
-    for i in range(num_friendly):
-        spawn_location = valid_spawn(world)
-        characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+                projectile.move()
+                screen.blit(projectile.sprite, projectile.rect)
 
-if spawn_enemy:
-    for i in range(num_enemy):
-        spawn_location = valid_spawn(world)
-        characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
+            characters[0].draw_sight_lines(screen)
+            characters[0].render_stats()
 
-top_performers = characters[:highscore_size]
-fps_counter = 0
-#Main loop
-while running:
+            screen_height - (133 * scale) + font2_size * 6 + font_offset * 6
 
-    print(f"screen width: {screen_width}, screen height: {screen_height}")
-    print(f"game width: {game_width}, game height: {game_height}")
-    print(f"scale: {scale}")
+            text_surface = font2.render("SAVE", True, (255, 255, 255))
+            button = Button(66 * scale, 33 * scale, 40 * scale, screen_height - (110 * scale) + font2_size * 6 + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"))
+            button.draw(screen)
+            buttons.append(button)
 
-    buttons = []
+            top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
+            draw_highscore_list(top_performers)
+            draw_kill_feed(kill_feed)
+            
+            text_surface = font3.render(f"Generation: {generation}", True, (255, 255, 255))
+            text_rect = text_surface.get_rect()
+            text_rect.centerx = screen_width // 2
+            text_rect.y = 10
+            screen.blit(text_surface, text_rect)
 
-    draw_map()
-    fps_counter += 1
-    for character in characters:
-        character.draw_arrow(screen)
-        character.move()  
-        character.render_name()
-        screen.blit(character.image, character.rect)
-        if fps_counter == fps:
-            character.score += time_survived_score
+            text_surface = font2.render(f"Soft timer: {softcap_timer} / {next_gen_softcap}", True, (255, 255, 255))
+            text_rect = text_surface.get_rect()
+            text_rect.centerx = screen_width // 3.5
+            text_rect.y = 10
+            screen.blit(text_surface, text_rect)
 
-    if fps_counter == fps:
-            hardcap_timer += 1
-            softcap_timer += 1
-            fps_counter = 0
+            text_surface = font2.render(f"Hard timer: {hardcap_timer} / {next_gen_hardcap}", True, (255, 255, 255))
+            text_rect = text_surface.get_rect()
+            text_rect.centerx = screen_width // 3.5
+            text_rect.y = 10 + font2_size
+            screen.blit(text_surface, text_rect)
 
-    for projectile in projectiles:
-        if projectile.distance_travelled > projectile_max_distance:
-            projectile.sprite.fill((255, 255, 255, projectile.transparency), None, pygame.BLEND_RGBA_MULT)
-            projectile.transparency -= 50
-        
-        if projectile.transparency <= 0:
-            projectiles.remove(projectile)
+            if softcap_timer == next_gen_softcap or hardcap_timer == next_gen_hardcap:
+                #Genetic Algorithms
+                performers = selection(characters, graveyard, 2)
 
-        projectile.move()
-        screen.blit(projectile.sprite, projectile.rect)
+                #pass characters that are going to carry over as parameter into the function
+                reset_world(performers)
+                generation += 1
 
-    characters[0].draw_sight_lines(screen)
-    characters[0].render_stats()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    game_state = GameState.QUIT
+                    
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+                        game_state = GameState.QUIT
 
-    text_surface = font2.render("SAVE", True, (255, 255, 255))
-    button = Button(66 * scale, 33 * scale, 6 * scale, screen_height - (133 * scale) + font2_size * 6 + + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"))
-    button.draw(screen)
-    buttons.append(button)
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    for button in buttons:
+                        if button.button_rect.collidepoint(mouse_x, mouse_y):
+                            button.function()
+                    else:
+                        for i in range(len(characters)):
+                            if characters[i].rect.collidepoint(mouse_x, mouse_y):
+                                characters[i], characters[0] = characters[0], characters[i]
+                                break
 
-    top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
-    draw_highscore_list(top_performers)
-    draw_kill_feed(kill_feed)
-    
-    text_surface = font3.render(f"Generation: {generation}", True, (255, 255, 255))
-    text_rect = text_surface.get_rect()
-    text_rect.centerx = screen_width // 2
-    text_rect.y = 10
-    screen.blit(text_surface, text_rect)
+            pygame.display.update()
+            pygame.time.Clock().tick(fps)
 
-    text_surface = font2.render(f"Soft timer: {softcap_timer} / {next_gen_softcap}", True, (255, 255, 255))
-    text_rect = text_surface.get_rect()
-    text_rect.centerx = screen_width // 3.5
-    text_rect.y = 10
-    screen.blit(text_surface, text_rect)
-
-    text_surface = font2.render(f"Hard timer: {hardcap_timer} / {next_gen_hardcap}", True, (255, 255, 255))
-    text_rect = text_surface.get_rect()
-    text_rect.centerx = screen_width // 3.5
-    text_rect.y = 10 + font2_size
-    screen.blit(text_surface, text_rect)
-
-    if softcap_timer == next_gen_softcap or hardcap_timer == next_gen_hardcap:
-        #Genetic Algorithms
-        performers = selection(characters, graveyard, 2)
-
-        #pass characters that are going to carry over as parameter into the function
-        reset_world(performers)
-        generation += 1
-    
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            for button in buttons:
-                if button.button_rect.collidepoint(mouse_x, mouse_y):
-                    button.function()
-
-            else:
-                for i in range(len(characters)):
-                    if characters[i].rect.collidepoint(mouse_x, mouse_y):
-                        characters[i], characters[0] = characters[0], characters[i]
-                        break
-
-    pygame.display.update()
-    pygame.time.Clock().tick(fps)
-
-pygame.quit()
+        pygame.quit()

@@ -6,8 +6,8 @@ class Button():
         self.button_sprite = pygame.transform.scale(sprite, (width, height))
         self.button_sprite_pressed = pygame.transform.scale(sprite_pressed, (width, height))
         self.button_rect = self.button_sprite.get_rect()
-        self.button_rect.x = x
-        self.button_rect.y = y
+        self.button_rect.centerx = x
+        self.button_rect.centery = y
         self.function = function
         self.text_surface = text_surface
 
