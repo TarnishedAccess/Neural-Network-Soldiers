@@ -432,6 +432,7 @@ team2_folder = os.path.join(tile_folder, "T2")
 projectile_folder = os.path.join(tile_folder, "projectiles")
 obstacle_folder = os.path.join(tile_folder, "obstacles")
 fonts_folder = "fonts"
+audio_folder = "audio"
 
 #Neural Network Parameters
 inputs = 21
@@ -469,6 +470,16 @@ font3 = pygame.font.Font(fontStyle_medieval, font3_size)
 font4_size = 40 * int(scale)
 font4 = pygame.font.Font(fontStyle_medieval, font4_size)
 font_offset = 4 * scale
+
+def load_spritesheet(filename, width, height):
+    spritesheet = pygame.image.load(filename).convert_alpha()
+    image_list = []
+    for y in range(0, spritesheet.get_height(), height):
+        for x in range(0, spritesheet.get_width(), width):
+            image = spritesheet.subsurface((x, y, width, height))
+            image = pygame.transform.scale(image, (64 * scale, 64 * scale))
+            image_list.append(image)
+    return image_list[:len(image_list)-1]
 
 #Load images
 upscale_factor = math.ceil(tile_size * scale)
@@ -509,31 +520,84 @@ for obstacle_image in os.listdir(obstacle_folder):
 button_img = pygame.image.load(os.path.join(tile_folder, "button.png"))
 button_pressed_img = pygame.image.load(os.path.join(tile_folder, "button_pressed.png"))
 
+animated_torch = load_spritesheet(os.path.join(tile_folder, "torch_anim.png"), 16, 16)
+
+menu_background = pygame.image.load(os.path.join(tile_folder, "menu_background.png"))
+image_width, image_height = menu_background.get_size()
+screen_width, screen_height = screen.get_size()
+scale_x = screen_width / image_width
+scale_y = screen_height / image_height
+#scale_factor = min(scale_x, scale_y)
+menu_background = pygame.transform.scale(menu_background, (int(image_width * scale_x), image_height * scale_y))
+menu_background_rect = menu_background.get_rect()
+menu_background_rect.x = 0
+menu_background_rect.y = 0
 
 game_state = GameState.MAIN_MENU
+transitioning = False
+transitioning_target = None
+fade_speed = 0.5
+fade_alpha = 255
+current_music_file = None
 
 def set_game_state(x):
-    global game_state
-    game_state = x
+    #global game_state
+    global transitioning
+    global transitioning_target
+    transitioning = True
+    transitioning_target = x
+
+def play_music(state):
+    global current_music_file
+    music_mapping = {
+        GameState.MAIN_MENU: os.path.join(audio_folder, "menu_theme.mp3"),
+        GameState.PLAYING: os.path.join(audio_folder, "game_theme.mp3"),
+        GameState.QUIT: None
+    }
+    music_file = music_mapping.get(state)
+    if music_file != current_music_file:
+        if music_file is not None:
+            pygame.mixer.music.load(music_file)
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.stop()
+        current_music_file = music_file
 
 while True:
+    if not transitioning:
+        fade_alpha = 255
+        volume = 0.1
+        pygame.mixer.music.set_volume(0.1)
+    torch_state = 0
+    menu_timer = 0
+    #this has to be the single worst way of doing this but i genuinely just do not care to refactor it atp
+
     while game_state == GameState.MAIN_MENU:
+        play_music(game_state)
+        menu_timer += 1
         screen.fill((0, 0, 0))
-        titleText = font4.render("NEURAL DUNGEON", True, (255, 255, 255))
+        screen.blit(menu_background, menu_background_rect)
+        torch1_rect = animated_torch[torch_state].get_rect()
+        torch1_rect.centerx, torch1_rect.centery = screen_width / 2 - 120 * scale, 50 * scale
+        torch2_rect = animated_torch[torch_state].get_rect()
+        torch2_rect.centerx, torch2_rect.centery = screen_width / 2 + 120 * scale, 50 * scale
+        screen.blit(animated_torch[torch_state], torch1_rect)
+        screen.blit(animated_torch[torch_state], torch2_rect)
+
+        if menu_timer == fps//8:
+            torch_state = (torch_state + 1) % len(animated_torch)
+        titleText = font4.render("NEURAL DUNGEON", True, (20, 20, 20))
         titleRect = titleText.get_rect()
         titleRect.centerx = screen_width / 2
         titleRect.centery = 50 * scale
-        screen.blit(titleText, titleRect)
 
         buttons = []
         startButton_Surface = font2.render("START", True, (255, 255, 255))
-        start_button = Button(66 * scale, 33 * scale, screen_width/2, 200 * scale, button_img, button_pressed_img, startButton_Surface, lambda: set_game_state(GameState.PLAYING))
-        start_button.draw(screen)
+        start_button = Button(66 * scale, 33 * scale, screen_width/2, 200 * scale, button_img, button_pressed_img, startButton_Surface, lambda: set_game_state(GameState.PLAYING), False, os.path.join(audio_folder, "start_sound.wav"))
         buttons.append(start_button)
 
         quitButton_Surface = font2.render("QUIT", True, (255, 255, 255))
-        quit_button = Button(66 * scale, 33 * scale, screen_width/2, 250 * scale, button_img, button_pressed_img, quitButton_Surface, lambda: set_game_state(GameState.QUIT))
-        quit_button.draw(screen)
+        quit_button = Button(66 * scale, 33 * scale, screen_width/2, 250 * scale, button_img, button_pressed_img, quitButton_Surface, lambda: set_game_state(GameState.QUIT), False, os.path.join(audio_folder, "quit_sound.wav"))
         buttons.append(quit_button)
 
         for event in pygame.event.get():
@@ -546,16 +610,40 @@ while True:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 for button in buttons:
                     if button.button_rect.collidepoint(mouse_x, mouse_y):
+                        button.play_sound()
                         button.function()
 
+        if transitioning:
+            if fade_alpha != 0:
+                elements = [titleText, startButton_Surface, start_button.button_sprite_notPressed, start_button.button_sprite_pressed, quitButton_Surface, quit_button.button_sprite_notPressed, quit_button.button_sprite_pressed, menu_background, animated_torch[torch_state]]
+
+                for element in elements:
+                    fade_alpha = max(0, fade_alpha - fade_speed)
+                    element.set_alpha(fade_alpha)
+                volume -= 0.001
+                pygame.mixer.music.set_volume(volume)
+            else:
+                game_state = transitioning_target
+                transitioning = False
+                break
+
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        for button in buttons:
+            if button.button_rect.collidepoint(mouse_x, mouse_y):
+                button.hovered = True
+            button.draw(screen)
+        screen.blit(titleText, titleRect)
+        pygame.time.Clock().tick(fps)
         pygame.display.flip()
+        if menu_timer == fps//8:
+            menu_timer = 0
 
     while game_state == GameState.QUIT:
         pygame.quit()
         exit()
 
     while game_state == GameState.PLAYING:
-
+        play_music(game_state)
         #Score Parameters
         enemy_kill_score = 30
         friendly_kill_score = -40
@@ -763,8 +851,7 @@ while True:
             screen_height - (133 * scale) + font2_size * 6 + font_offset * 6
 
             text_surface = font2.render("SAVE", True, (255, 255, 255))
-            button = Button(66 * scale, 33 * scale, 40 * scale, screen_height - (110 * scale) + font2_size * 6 + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"))
-            button.draw(screen)
+            button = Button(66 * scale, 33 * scale, 40 * scale, screen_height - (110 * scale) + font2_size * 6 + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"), False, None)
             buttons.append(button)
 
             top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
@@ -801,7 +888,7 @@ while True:
                 if event.type == pygame.QUIT:
                     running = False
                     game_state = GameState.QUIT
-                    
+
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
@@ -817,6 +904,12 @@ while True:
                             if characters[i].rect.collidepoint(mouse_x, mouse_y):
                                 characters[i], characters[0] = characters[0], characters[i]
                                 break
+
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            for button in buttons:
+                if button.button_rect.collidepoint(mouse_x, mouse_y):
+                    button.hovered = True
+                button.draw(screen)
 
             pygame.display.update()
             pygame.time.Clock().tick(fps)
