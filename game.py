@@ -23,7 +23,7 @@ spawn_friendly = True
 num_friendly = 25
 highscore_size = 6
 elite_num = 8
-selection_num = 30
+selection_num = 32
 #scales everything up or down
 #scale = 1.5
 tile_size = 16
@@ -936,7 +936,7 @@ while True:
                 if kill[2] == 0:
                     kill_feed.remove(kill)
 
-        def reset_world(performers):
+        def reset_world(performers_team1, performers_team2):
 
             global characters, graveyard, projectiles, kill_feed, softcap_timer, hardcap_timer
 
@@ -948,13 +948,16 @@ while True:
             softcap_timer = 0
             hardcap_timer = 0
 
+            performers = performers_team1 + performers_team2
+
             for i in range(len(performers)):
                 #allocate teams so they're not too heavily onesided (this does favor blue though, will fix later)
-                performers[i].team = (i % 2) + 1
-                if performers[i].team == 1:
+                if performers[i] in performers_team1:
+                    performers[i].team == 1
                     performers[i].image = random.choice(team1_sprites)
                     spawn_location = valid_spawn_team1(world)
-                else:
+                elif performers[i] in performers_team2:
+                    performers[i].team == 2
                     performers[i].image = random.choice(team2_sprites)
                     spawn_location = valid_spawn_team2(world)
                 performers[i].rect = performers[i].image.get_rect()
@@ -1022,9 +1025,9 @@ while True:
                 if fps_counter == fps:
                     character.score += time_survived_score
                     if character.team == 1:
-                        character.score += (character.rect.y - map_center_y) * aggression_reward
+                        character.score += (character.rect.y - map_center_y//2) * aggression_reward
                     elif character.team == 2:
-                        character.score += (map_center_y - character.rect.y) * aggression_reward
+                        character.score += (map_center_y//2*3 - character.rect.y) * aggression_reward
             if fps_counter == fps:
                     hardcap_timer += 1
                     softcap_timer += 1
@@ -1077,35 +1080,65 @@ while True:
                 combined_characters = characters + graveyard
                 combined_characters.sort(key=lambda character: character.score, reverse=True)
 
-                #First portion of the new generation: top 2
-                elite = combined_characters[:elite_num]
-                for character in elite:
-                    combined_characters.remove(character)
+                combined_characters_team1 = [character for character in combined_characters if character.team == 1]
+                combined_characters_team2 = [character for character in combined_characters if character.team == 2]
+
+                #First portion of the new generation: top 4
+
+                elite_team_1 = combined_characters_team1[:elite_num//2]
+                elite_team_2 = combined_characters_team2[:elite_num//2]
+
+                for character in elite_team_1:
+                    combined_characters_team1.remove(character)
+                for character in elite_team_2:
+                    combined_characters_team2.remove(character)
 
                 #Second portion of the new generation: 8 crossovers
-                performers = selection(combined_characters, selection_num)
-                crossedChildren = []
-                while len(performers) != 0:
-                    parents = random.sample(performers, k=2)
+                performers_team1 = selection(combined_characters_team1, selection_num//2)
+                crossedChildren_team1 = []
+                while len(performers_team1) > 1:
+                    parents = random.sample(performers_team1, k=2)
                     siblings = crossing(parents[0].AI.toList(), parents[1].AI.toList())
                     sibling_1_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
                     sibling_1_AI.load(*siblings[0])
                     #Position and team don't matter they'll all get reset anyway.
-                    crossedChildren.append(Character(1, 1, 1, sibling_1_AI))
+                    crossedChildren_team1.append(Character(1, 1, 1, sibling_1_AI))
                     sibling_2_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
                     sibling_2_AI.load(*siblings[1])
-                    crossedChildren.append(Character(1, 1, 1, sibling_2_AI))
+                    crossedChildren_team1.append(Character(1, 1, 1, sibling_2_AI))
                     for parent in parents:
-                        performers.remove(parent)
+                        performers_team1.remove(parent)
+
+                performers_team2 = selection(combined_characters_team2, selection_num//2)
+                crossedChildren_team2 = []
+                while len(performers_team2) > 1:
+                    parents = random.sample(performers_team2, k=2)
+                    siblings = crossing(parents[0].AI.toList(), parents[1].AI.toList())
+                    sibling_1_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
+                    sibling_1_AI.load(*siblings[0])
+                    #Position and team don't matter they'll all get reset anyway.
+                    crossedChildren_team2.append(Character(1, 1, 2, sibling_1_AI))
+                    sibling_2_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
+                    sibling_2_AI.load(*siblings[1])
+                    crossedChildren_team2.append(Character(1, 1, 2, sibling_2_AI))
+                    for parent in parents:
+                        performers_team2.remove(parent)
 
                 #Mutate half of the children:
-                for i in range(len(crossedChildren)//2):
+                for i in range(len(crossedChildren_team1)//2):
                     #minimum of 2 mutations, max of 5
-                    child_AI = crossedChildren[i].AI.toList()
+                    child_AI = crossedChildren_team1[i].AI.toList()
                     mutate(child_AI, 2, 5)
-                    crossedChildren[i].AI.load(*child_AI)
+                    crossedChildren_team1[i].AI.load(*child_AI)
+
+                for i in range(len(crossedChildren_team2)//2):
+                    #minimum of 2 mutations, max of 5
+                    child_AI = crossedChildren_team2[i].AI.toList()
+                    mutate(child_AI, 2, 5)
+                    crossedChildren_team2[i].AI.load(*child_AI)
+
                 #The remaining 6 characters will be randomly generated.
-                reset_world(elite + crossedChildren)
+                reset_world(elite_team_1 + crossedChildren_team1, elite_team_2 + crossedChildren_team2)
                 generation += 1
 
             for event in pygame.event.get():
