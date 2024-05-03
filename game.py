@@ -9,11 +9,6 @@ from genetic_algorithms import *
 from auxillary import *
 from enum import Enum
 
-class GameState(Enum):
-    MAIN_MENU = 0
-    PLAYING = 1
-    QUIT = 2
-
 with open("walker_map.json", "r") as f:
     map_data = json.load(f)
 
@@ -23,10 +18,12 @@ with open("first-names.txt", "r") as f:
 #Start parameters
 spawn_player = False
 spawn_enemy = True
-num_enemy = 8
+num_enemy = 25
 spawn_friendly = True
-num_friendly = 8
+num_friendly = 25
 highscore_size = 6
+elite_num = 8
+selection_num = 30
 #scales everything up or down
 #scale = 1.5
 tile_size = 16
@@ -43,8 +40,8 @@ kill_popup_timer = fps * 2
 
 #Generation Parameters
 #every generation will end in "hardcap" no matter what, but will end earlier if no kills happen in a "softcap" interval
-next_gen_hardcap = 15
-next_gen_softcap = 5
+next_gen_hardcap = 8
+next_gen_softcap = 4
 
 hardcap_timer = 0
 softcap_timer = 0
@@ -423,6 +420,19 @@ class Character(Player):
         text_rect.x, text_rect.y = 10, screen_height - (133 * scale) + font2_size * 5 + font_offset * 5
         screen.blit(text_surface, text_rect)
 
+    def save(self, filename):
+        datetime_now = datetime.now()
+        formatted_date = datetime_now.strftime("%d/%m/%Y")
+        datetime_now = datetime_now.strftime("%Y%m%d%H%M%S")
+        save_path = os.path.join("neural_network", "network_storage", filename)
+        data = {
+            "name": self.name,
+            "time_created": formatted_date,
+            "network": self.AI.toList()
+        }
+        with open(f"{save_path}_{datetime_now}.json", "w") as network_file:
+            json.dump(data, network_file)
+
 #Parameters
 tile_folder = "tiles"
 floors_folder = os.path.join(tile_folder, "floors")
@@ -433,6 +443,7 @@ projectile_folder = os.path.join(tile_folder, "projectiles")
 obstacle_folder = os.path.join(tile_folder, "obstacles")
 fonts_folder = "fonts"
 audio_folder = "audio"
+network_storage_folder = os.path.join("neural_network", "network_storage")
 
 #Neural Network Parameters
 inputs = 21
@@ -520,6 +531,8 @@ for obstacle_image in os.listdir(obstacle_folder):
 button_img = pygame.image.load(os.path.join(tile_folder, "button.png"))
 button_pressed_img = pygame.image.load(os.path.join(tile_folder, "button_pressed.png"))
 
+text_plate_img = pygame.image.load(os.path.join(tile_folder, "Plate.png"))
+
 animated_torch = load_spritesheet(os.path.join(tile_folder, "torch_anim.png"), 16, 16)
 
 menu_background = pygame.image.load(os.path.join(tile_folder, "menu_background.png"))
@@ -532,6 +545,16 @@ menu_background = pygame.transform.scale(menu_background, (int(image_width * sca
 menu_background_rect = menu_background.get_rect()
 menu_background_rect.x = 0
 menu_background_rect.y = 0
+
+small_image = pygame.transform.smoothscale(menu_background, (menu_background.get_width() // 6, menu_background.get_height() // 6))
+menu_background = pygame.transform.smoothscale(small_image, (int(image_width * scale_x), image_height * scale_y))
+
+class GameState(Enum):
+    MAIN_MENU = 0
+    PLAYING = 1
+    BANK = 2
+    DUNGEONS = 3
+    QUIT = 4
 
 game_state = GameState.MAIN_MENU
 transitioning = False
@@ -552,6 +575,8 @@ def play_music(state):
     music_mapping = {
         GameState.MAIN_MENU: os.path.join(audio_folder, "menu_theme.mp3"),
         GameState.PLAYING: os.path.join(audio_folder, "game_theme.mp3"),
+        GameState.BANK: os.path.join(audio_folder, "bank_theme.mp3"),
+        GameState.DUNGEONS: os.path.join(audio_folder, "dungeon_theme.mp3"),
         GameState.QUIT: None
     }
     music_file = music_mapping.get(state)
@@ -562,6 +587,9 @@ def play_music(state):
         else:
             pygame.mixer.music.stop()
         current_music_file = music_file
+
+selected_blue = []
+selected_red = []
 
 while True:
     if not transitioning:
@@ -592,12 +620,20 @@ while True:
         titleRect.centery = 50 * scale
 
         buttons = []
-        startButton_Surface = font2.render("START", True, (255, 255, 255))
-        start_button = Button(66 * scale, 33 * scale, screen_width/2, 200 * scale, button_img, button_pressed_img, startButton_Surface, lambda: set_game_state(GameState.PLAYING), False, os.path.join(audio_folder, "start_sound.wav"))
+        startButton_Surface = font2.render("Start", True, (255, 255, 255))
+        start_button = Button(66 * scale, 33 * scale, screen_width/2, 200 * scale, button_img, button_pressed_img, startButton_Surface, lambda: set_game_state(GameState.PLAYING), False, os.path.join(audio_folder, "start_sound.mp3"))
         buttons.append(start_button)
 
-        quitButton_Surface = font2.render("QUIT", True, (255, 255, 255))
-        quit_button = Button(66 * scale, 33 * scale, screen_width/2, 250 * scale, button_img, button_pressed_img, quitButton_Surface, lambda: set_game_state(GameState.QUIT), False, os.path.join(audio_folder, "quit_sound.wav"))
+        bankButton_Surface = font2.render("Neural Bank", True, (255, 255, 255))
+        bank_button = Button(66 * scale, 33 * scale, screen_width/2, 250 * scale, button_img, button_pressed_img, bankButton_Surface, lambda: set_game_state(GameState.BANK), False, os.path.join(audio_folder, "bank_sound.mp3"))
+        buttons.append(bank_button)
+
+        dungeonButton_Surface = font2.render("Dungeons", True, (255, 255, 255))
+        dungeon_button = Button(66 * scale, 33 * scale, screen_width/2, 300 * scale, button_img, button_pressed_img, dungeonButton_Surface, lambda: set_game_state(GameState.DUNGEONS), False, os.path.join(audio_folder, "dungeon_sound.mp3"))
+        buttons.append(dungeon_button)
+
+        quitButton_Surface = font2.render("Quit", True, (255, 255, 255))
+        quit_button = Button(66 * scale, 33 * scale, screen_width/2, 350 * scale, button_img, button_pressed_img, quitButton_Surface, lambda: set_game_state(GameState.QUIT), False, os.path.join(audio_folder, "quit_sound.wav"))
         buttons.append(quit_button)
 
         for event in pygame.event.get():
@@ -613,10 +649,11 @@ while True:
                         button.play_sound()
                         button.function()
 
+        elements = [titleText, menu_background, animated_torch[torch_state]]
+        for button in buttons:
+            elements.extend([button.button_sprite_pressed, button.button_sprite_notPressed, button.text_surface])
         if transitioning:
             if fade_alpha != 0:
-                elements = [titleText, startButton_Surface, start_button.button_sprite_notPressed, start_button.button_sprite_pressed, quitButton_Surface, quit_button.button_sprite_notPressed, quit_button.button_sprite_pressed, menu_background, animated_torch[torch_state]]
-
                 for element in elements:
                     fade_alpha = max(0, fade_alpha - fade_speed)
                     element.set_alpha(fade_alpha)
@@ -626,6 +663,9 @@ while True:
                 game_state = transitioning_target
                 transitioning = False
                 break
+        else:
+            for element in elements:
+                element.set_alpha(255)
 
         mouse_x, mouse_y = pygame.mouse.get_pos()
         for button in buttons:
@@ -642,21 +682,155 @@ while True:
         pygame.quit()
         exit()
 
+    selected_AI = None
+    def assign_selected_AI(i):
+        global selected_AI
+        selected_AI = characters_data[i]
+
+    def remove_from_blue(i):
+        global selected_blue
+        selected_blue.pop(i)
+
+    def remove_from_red(i):
+        global selected_red
+        selected_red.pop(i)
+
+    while game_state == GameState.BANK:
+        play_music(game_state)
+        screen.fill((157, 124, 13))
+        buttons = []
+        character_button_width = screen_width // 3 // 4
+        character_button_height = screen_height // 3 // 6
+
+        bank_surface = font4.render('Neural Bank', True, (255, 255, 255))
+        bank_plate = TextPlate(300, 100, screen_width // 2, 50 * scale, text_plate_img, bank_surface)
+        bank_plate.draw(screen)
+
+        i = 0
+        start_pos_x = character_button_width // 2 + 10 * scale
+        start_pos_y = 100 * scale + character_button_height // 2
+
+        character_description_x = screen_width // 3 * 2 + (screen_width // 6)
+
+        characters_data = []
+        for network in os.listdir(network_storage_folder):
+            network_path = os.path.join(network_storage_folder, network)
+            with open(network_path, "r") as file:
+                character_data = json.load(file)
+            characters_data.append(character_data)
+            text_surface = font2.render(character_data['name'], True, (255, 255, 255))
+            character_button = Button(character_button_width, character_button_height, start_pos_x + character_button_width * (i % 7), start_pos_y + character_button_height * (i // 7), button_img, button_pressed_img, text_surface, lambda i=i: assign_selected_AI(i), False, None)
+            buttons.append(character_button)
+            i += 1
+
+        selectedText = font3.render("Selected AI", True, (20, 20, 20))
+        selectedRect = selectedText.get_rect()
+        selectedRect.centerx = character_description_x
+        selectedRect.centery = 100 * scale + character_button_height // 2
+        screen.blit(selectedText, selectedRect)
+
+        if selected_AI == None:
+            selectedText = font3.render("No AI Selected", True, (20, 20, 20))
+            selectedRect = selectedText.get_rect()
+            selectedRect.centerx = character_description_x
+            selectedRect.centery = 130 * scale + character_button_height // 2
+            screen.blit(selectedText, selectedRect)
+        else:
+            selectedText = font3.render(f"Name: {selected_AI['name']}", True, (20, 20, 20))
+            selectedRect = selectedText.get_rect()
+            selectedRect.centerx = character_description_x
+            selectedRect.centery = 120 * scale + character_button_height // 2
+            screen.blit(selectedText, selectedRect)
+
+            selectedText = font3.render(f"Created: {selected_AI['time_created']}", True, (20, 20, 20))
+            selectedRect = selectedText.get_rect()
+            selectedRect.centerx = character_description_x
+            selectedRect.centery = 140 * scale + character_button_height // 2
+            screen.blit(selectedText, selectedRect)
+
+            text_surface = font2.render('Add to Red', True, (255, 255, 255))
+            addToRed_Button = Button(character_button_width, character_button_height, character_description_x, 150 * scale + character_button_height, button_img, button_pressed_img, text_surface, lambda: selected_red.append(selected_AI) if len(selected_red) < 8 else None, False, None)
+            buttons.append(addToRed_Button)
+
+            text_surface = font2.render('Add to Blue', True, (255, 255, 255))
+            addToBlue_Button = Button(character_button_width, character_button_height, character_description_x, 155 * scale + character_button_height * 2, button_img, button_pressed_img, text_surface, lambda: selected_blue.append(selected_AI) if len(selected_blue) < 8 else None, False, None)
+            buttons.append(addToBlue_Button)
+
+        redTeamText = font3.render("Red Team:", True, (20, 20, 20))
+        redTeamRect = redTeamText.get_rect()
+        redTeamRect.centerx = 60 * scale
+        redTeamRect.centery = screen_height // 3 * 2 + 50 * scale
+        screen.blit(redTeamText, redTeamRect)
+
+        blueTeamText = font3.render("Blue Team:", True, (20, 20, 20))
+        blueTeamRect = blueTeamText.get_rect()
+        blueTeamRect.centerx = 60 * scale
+        blueTeamRect.centery =  screen_height // 3 * 2 + 100 * scale
+        screen.blit(blueTeamText, blueTeamRect)
+
+        x = 0
+        for blue_member in selected_blue:
+            text_surface = font2.render(blue_member['name'], True, (255, 255, 255))
+            character_button = Button(character_button_width, character_button_height, 120 * scale + (character_button_width + 5)* x, screen_height // 3 * 2 + 100 * scale, button_img, button_pressed_img, text_surface, lambda x=x: remove_from_blue(x), False, None)
+            buttons.append(character_button)
+            x += 1
+
+        x = 0
+        for red_member in selected_red:
+            text_surface = font2.render(red_member['name'], True, (255, 255, 255))
+            character_button = Button(character_button_width, character_button_height, 120 * scale + (character_button_width + 5)* x, screen_height // 3 * 2 + 50 * scale, button_img, button_pressed_img, text_surface, lambda x=x: remove_from_red(x), False, None)
+            buttons.append(character_button)
+            x += 1
+
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        for button in buttons:
+            if button.button_rect.collidepoint(mouse_x, mouse_y):
+                button.hovered = True
+            button.draw(screen)
+
+        #print(selected_AI)
+        pygame.display.update()
+
+        for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    game_state = GameState.QUIT
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        game_state = GameState.MAIN_MENU        
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    for button in buttons:
+                        if button.button_rect.collidepoint(mouse_x, mouse_y):
+                            button.play_sound()
+                            button.function()
+
+    while game_state == GameState.DUNGEONS:
+        play_music(game_state)
+        for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    game_state = GameState.QUIT
+
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        game_state = GameState.MAIN_MENU
+
     while game_state == GameState.PLAYING:
         play_music(game_state)
         #Score Parameters
+        map_center_y = screen_height//2
         enemy_kill_score = 30
-        friendly_kill_score = -40
+        friendly_kill_score = -50
         bullet_fired_score = -0.1
         time_survived_score = 1
-        camping_cutoff = 50 * scale
-        camping_timer = 4 * fps
-        movement_reward = 0.25
+        camping_cutoff = 55 * scale
+        camping_timer = 2 * fps
+        movement_reward = 0.1
+        aggression_reward = 0.05
 
-        staring_wall_score = -0.25
-        wall_staring_timer = 3 * fps
+        staring_wall_score = -1
+        wall_staring_timer = 2 * fps
 
-        projectile_max_distance = tile_size * scale * 6
+        projectile_max_distance = tile_size * scale * 5
 
         #Drawing the map
         def create_map():
@@ -695,6 +869,20 @@ while True:
 
         def valid_spawn(world_data):
             valid_spawns = [tile for tile in world_data if tile.passable]
+            chosen_spawn = random.choice(valid_spawns)
+            return [chosen_spawn.rect.x, chosen_spawn.rect.y]
+
+        def valid_spawn_team1(world_data):
+            world_size = len(world_data)
+            cutoff = world_size // 3
+            valid_spawns = [tile for tile in world_data[:cutoff] if tile.passable]
+            chosen_spawn = random.choice(valid_spawns)
+            return [chosen_spawn.rect.x, chosen_spawn.rect.y]
+        
+        def valid_spawn_team2(world_data):
+            world_size = len(world_data)
+            cutoff = world_size // 3
+            valid_spawns = [tile for tile in world_data[cutoff * 2:] if tile.passable]
             chosen_spawn = random.choice(valid_spawns)
             return [chosen_spawn.rect.x, chosen_spawn.rect.y]
 
@@ -765,25 +953,30 @@ while True:
                 performers[i].team = (i % 2) + 1
                 if performers[i].team == 1:
                     performers[i].image = random.choice(team1_sprites)
+                    spawn_location = valid_spawn_team1(world)
                 else:
                     performers[i].image = random.choice(team2_sprites)
+                    spawn_location = valid_spawn_team2(world)
                 performers[i].rect = performers[i].image.get_rect()
                 performers[i].image = pygame.transform.scale(performers[i].image, (performers[i].rect.width * scale, performers[i].rect.height * scale))
                 performers[i].rect = performers[i].image.get_rect()
-                spawn_location = valid_spawn(world)
                 performers[i].rect.x = spawn_location[0]
                 performers[i].rect.y = spawn_location[1]
                 performers[i].score = 0
+                performers[i].camping_stopwatch = 0
+                performers[i].camping_x = 0
+                performers[i].camping_y = 0
+                performers[i].wall_staring_stopwatch = 0
                 characters.append(performers[i])
 
             if spawn_friendly:
                 for i in range(num_friendly - len(performers)//2):
-                    spawn_location = valid_spawn(world)
+                    spawn_location = valid_spawn_team1(world)
                     characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
             if spawn_enemy:
                 for i in range(num_enemy - len(performers)//2):
-                    spawn_location = valid_spawn(world)
+                    spawn_location = valid_spawn_team2(world)
                     characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
         world = []
@@ -804,12 +997,12 @@ while True:
 
         if spawn_friendly:
             for i in range(num_friendly):
-                spawn_location = valid_spawn(world)
+                spawn_location = valid_spawn_team1(world)
                 characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
         if spawn_enemy:
             for i in range(num_enemy):
-                spawn_location = valid_spawn(world)
+                spawn_location = valid_spawn_team2(world)
                 characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
         top_performers = characters[:highscore_size]
@@ -828,7 +1021,10 @@ while True:
                 screen.blit(character.image, character.rect)
                 if fps_counter == fps:
                     character.score += time_survived_score
-
+                    if character.team == 1:
+                        character.score += (character.rect.y - map_center_y) * aggression_reward
+                    elif character.team == 2:
+                        character.score += (map_center_y - character.rect.y) * aggression_reward
             if fps_counter == fps:
                     hardcap_timer += 1
                     softcap_timer += 1
@@ -851,7 +1047,7 @@ while True:
             screen_height - (133 * scale) + font2_size * 6 + font_offset * 6
 
             text_surface = font2.render("SAVE", True, (255, 255, 255))
-            button = Button(66 * scale, 33 * scale, 40 * scale, screen_height - (110 * scale) + font2_size * 6 + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].AI.save(f"{characters[0].name}"), False, None)
+            button = Button(66 * scale, 33 * scale, 40 * scale, screen_height - (110 * scale) + font2_size * 6 + font_offset * 6, button_img, button_pressed_img, text_surface, lambda: characters[0].save(f"{characters[0].name}"), False, None)
             buttons.append(button)
 
             top_performers = sorted(characters + graveyard, key=lambda x: x.score, reverse=True)[:highscore_size]
@@ -878,10 +1074,38 @@ while True:
 
             if softcap_timer == next_gen_softcap or hardcap_timer == next_gen_hardcap:
                 #Genetic Algorithms
-                performers = selection(characters, graveyard, 2)
+                combined_characters = characters + graveyard
+                combined_characters.sort(key=lambda character: character.score, reverse=True)
 
-                #pass characters that are going to carry over as parameter into the function
-                reset_world(performers)
+                #First portion of the new generation: top 2
+                elite = combined_characters[:elite_num]
+                for character in elite:
+                    combined_characters.remove(character)
+
+                #Second portion of the new generation: 8 crossovers
+                performers = selection(combined_characters, selection_num)
+                crossedChildren = []
+                while len(performers) != 0:
+                    parents = random.sample(performers, k=2)
+                    siblings = crossing(parents[0].AI.toList(), parents[1].AI.toList())
+                    sibling_1_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
+                    sibling_1_AI.load(*siblings[0])
+                    #Position and team don't matter they'll all get reset anyway.
+                    crossedChildren.append(Character(1, 1, 1, sibling_1_AI))
+                    sibling_2_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
+                    sibling_2_AI.load(*siblings[1])
+                    crossedChildren.append(Character(1, 1, 1, sibling_2_AI))
+                    for parent in parents:
+                        performers.remove(parent)
+
+                #Mutate half of the children:
+                for i in range(len(crossedChildren)//2):
+                    #minimum of 2 mutations, max of 5
+                    child_AI = crossedChildren[i].AI.toList()
+                    mutate(child_AI, 2, 5)
+                    crossedChildren[i].AI.load(*child_AI)
+                #The remaining 6 characters will be randomly generated.
+                reset_world(elite + crossedChildren)
                 generation += 1
 
             for event in pygame.event.get():

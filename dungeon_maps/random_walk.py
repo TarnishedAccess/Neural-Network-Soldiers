@@ -9,11 +9,11 @@ import random
 """
 
 #Parameters
-width = 30
-height = 30
-steps = 3000
+width = 40
+height = 40
+steps = 6000
 
-obstacle_chance = 7
+obstacle_chance = 5
 obstacles_weighted = {
     "pillar": (1, 11),
     "box": (2, 12)

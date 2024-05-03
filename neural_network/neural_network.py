@@ -41,11 +41,15 @@ class NeuralNetwork():
         A3 = self.ReLU(Z3)
         return A3
 
-    def save(self, filename):
+    def toList(self):
         arrays = [self.W1, self.B1, self.W2, self.B2, self.W3, self.B3]
         list_conversion = [array.tolist() for array in arrays]
-        datetime_now = datetime.now()
-        datetime_now = datetime_now.strftime("%Y%m%d%H%M%S")
-        save_path = os.path.join("neural_network", "network_storage", filename)
-        with open(f"{save_path}_{datetime_now}.json", "w") as network_file:
-            json.dump(list_conversion, network_file)
+        return list_conversion
+    
+    def load(self, W1, B1, W2, B2, W3, B3):
+        self.W1 = np.array(W1)
+        self.B1 = np.array(B1)
+        self.W2 = np.array(W2)
+        self.B2 = np.array(B2)
+        self.W3 = np.array(W3)
+        self.B3 = np.array(B3)
