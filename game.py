@@ -998,13 +998,29 @@ while True:
             spawn_location = valid_spawn(world)
             characters.append(Player(spawn_location[0], spawn_location[1], 1))
 
+        for character in selected_blue:
+            spawn_location = valid_spawn_team1(world)
+            character_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
+            character_AI.load(*character['network'])
+            new_character = Character(spawn_location[0], spawn_location[1], 1, character_AI)
+            new_character.name = character['name']
+            characters.append(new_character)
+
+        for character in selected_red:
+            spawn_location = valid_spawn_team2(world)
+            character_AI = NeuralNetwork(inputs, hidden, hidden_2, outputs)
+            character_AI.load(*character['network'])
+            new_character = Character(spawn_location[0], spawn_location[1], 2, character_AI)
+            new_character.name = character['name']
+            characters.append(new_character)
+
         if spawn_friendly:
-            for i in range(num_friendly):
+            for i in range(num_friendly-len(selected_blue)):
                 spawn_location = valid_spawn_team1(world)
                 characters.append(Character(spawn_location[0], spawn_location[1], 1, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 
         if spawn_enemy:
-            for i in range(num_enemy):
+            for i in range(num_enemy-len(selected_red)):
                 spawn_location = valid_spawn_team2(world)
                 characters.append(Character(spawn_location[0], spawn_location[1], 2, NeuralNetwork(inputs, hidden, hidden_2, outputs)))
 

@@ -4,6 +4,8 @@ import json
 from datetime import datetime
 import os
 
+#Adding current position and angle as inputs might be what we need
+
 class NeuralNetwork():
     def __init__(self, inputs, hidden, hidden2, outputs):
 
