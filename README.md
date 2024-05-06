@@ -72,3 +72,6 @@ random walks
 29/04/2024
 Fitness pondérés survie + kill_enemy - kill_friend + distance
 Sélection best fitness
+
+Last check:
+Excellent
