@@ -8,7 +8,7 @@
 [ ] interface for terrain gen  
 [X] UI/info on soldiers during runtime  
 [X] darken walls  
-[ ] more obstacle/rock sprites  
+[X] more obstacle/rock sprites  
 
 ## TODO:
 [X] add rotation  
@@ -27,24 +27,19 @@
 [X] optimize model 	                                                    
 [X] implement score system  
 [X] implement selection function  
-[ ] implement crossing function  <= YOU ARE HERE  
-[ ] implement mutation function  
-[ ] finishing touches  
+[X] implement crossing function  <= YOU ARE HERE  
+[X] implement mutation function  
+[X] finishing touches  
 
 #===TRAINING===  
 [X] add score to characters  
 [X] track kills  
-[ ] add reward/penalty system  <= YOU ARE HERE  
+[X] add reward/penalty system  <= YOU ARE HERE  
 	enemy kill:				+30  
 	friendly kill:				-50  
 	bullet wasted:				-3  
 	time survived:				+1/s  
 	staring at wall:			-3/s  
-	keep enemy in outlying vision:		-4/s  
-	keep enemy in center vision:		+6/s  
-	keep enemy in center vision in cover:	+12/s  
-	keep friendlies in outlying vision:	+4/s  
-	multiple enemies in vision:		-5/s  
 	camping penalty:			-5/s  
 	dying penalty:				-30 (?)  
 Note: Values are experimental and prone to change  
